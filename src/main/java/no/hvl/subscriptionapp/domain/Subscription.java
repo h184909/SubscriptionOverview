@@ -100,6 +100,10 @@ public class Subscription {
     public String getBillingEmail() { return billingEmail; }
     public boolean isActive() { return active; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setNextChargeDate(LocalDate nextChargeDate) {
+        this.nextChargeDate = nextChargeDate;
+    }
+
 
     // ✅ NYTT
     public String getCancelUrl() { return cancelUrl; }

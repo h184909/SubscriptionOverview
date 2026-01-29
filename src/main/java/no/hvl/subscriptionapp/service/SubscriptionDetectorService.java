@@ -1,292 +1,295 @@
 package no.hvl.subscriptionapp.service;
 
 import no.hvl.subscriptionapp.domain.BankTransaction;
+import no.hvl.subscriptionapp.domain.SuggestionDecision;
 import no.hvl.subscriptionapp.domain.Subscription;
 import no.hvl.subscriptionapp.repository.BankTransactionRepository;
+import no.hvl.subscriptionapp.repository.SuggestionDecisionRepository;
 import no.hvl.subscriptionapp.repository.SubscriptionRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.*;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
 public class SubscriptionDetectorService {
 
     private final BankTransactionRepository txRepo;
-    private final SubscriptionRepository subscriptionRepo;
-    private final ProviderMatcherService matcher;
+    private final SubscriptionRepository subRepo;
+    private final SuggestionDecisionRepository decisionRepo;
 
     public SubscriptionDetectorService(
             BankTransactionRepository txRepo,
-            SubscriptionRepository subscriptionRepo,
-            ProviderMatcherService matcher
+            SubscriptionRepository subRepo,
+            SuggestionDecisionRepository decisionRepo
     ) {
         this.txRepo = txRepo;
-        this.subscriptionRepo = subscriptionRepo;
-        this.matcher = matcher;
+        this.subRepo = subRepo;
+        this.decisionRepo = decisionRepo;
     }
 
-    // Juster disse hvis du vil
-    private static final int LOOKBACK_DAYS = 420;          // hvor langt tilbake vi analyserer
-    private static final int STALE_AFTER_DAYS = 120;       // hvis siste trekk er eldre enn dette => ikke foreslå (for månedlig)
-    private static final int GRACE_DAYS_FOR_NEXT = 14;     // “neste” kan være litt bakover pga variasjon
-
-    // nøkkelord som typisk IKKE er abonnement
-    private static final List<String> EXCLUDE_KEYWORDS = List.of(
-            "vipps", "overforing", "overføring", "straksbetaling", "lonn", "lønn",
-            "renter", "gebyr", "provisjon", "debetrenter", "kredittkort innbetaling",
-            "til:", "fra:" // ofte personoverføringer
-    );
+    // --- Offentlig API ---
 
     public List<SubscriptionSuggestion> detect(String userEmail) {
+        List<SubscriptionSuggestion> all = computeSuggestions(userEmail);
+
+        // fjern accepted/rejected
+        Set<String> blocked = decisionRepo.findByUserEmail(userEmail).stream()
+                .map(SuggestionDecision::getSuggestionKey)
+                .collect(Collectors.toSet());
+
+        // fjern de som allerede er abonnement (navn-likhet / providerKey)
+        List<Subscription> subs = subRepo.findByUserEmailOrderByCreatedAtDesc(userEmail);
+        Set<String> subNames = subs.stream()
+                .map(s -> norm(s.getName()))
+                .collect(Collectors.toSet());
+
         LocalDate today = LocalDate.now();
 
-        OffsetDateTime after = today.minusDays(LOOKBACK_DAYS).atStartOfDay().atOffset(ZoneOffset.UTC);
-        List<BankTransaction> txs = txRepo.findByUserEmailAndTxDateAfterOrderByTxDateAsc(userEmail, after);
-
-        // aktive subscriptions -> brukes for å filtrere bort “godtatt”
-        List<Subscription> subs = subscriptionRepo.findByUserEmailOrderByCreatedAtDesc(userEmail);
-        Set<String> activeProviderKeys = subs.stream()
-                .filter(Subscription::isActive)
-                .map(s -> matcher.match(s.getName()))
-                .filter(ProviderMatcherService.Match::knownProvider)
-                .map(ProviderMatcherService.Match::providerKey)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-        Set<String> activeNameKeys = subs.stream()
-                .filter(Subscription::isActive)
-                .map(Subscription::getName)
-                .map(ProviderMatcherService::normalizeMerchantKey)
-                .collect(Collectors.toSet());
-
-        // 1) prefilter: kun negative beløp (utgifter) og ikke støy
-        List<TxLite> candidates = new ArrayList<>();
-        for (BankTransaction t : txs) {
-            if (t.getAmount() == null) continue;
-            if (t.getAmount().compareTo(BigDecimal.ZERO) >= 0) continue;
-
-            String raw = safe(t.getDescription());
-            String key = ProviderMatcherService.normalizeMerchantKey(raw);
-
-            if (key.isBlank()) continue;
-
-            boolean known = matcher.match(raw).knownProvider();
-
-            // støy-filter (men ikke for kjente providers – de får lov å slippe gjennom)
-            if (!known && looksLikeNoise(raw, key)) {
-                continue;
-            }
-
-            candidates.add(new TxLite(
-                    t.getTxDate().toLocalDate(),
-                    raw,
-                    key,
-                    t.getAmount().abs(),
-                    safe(t.getCurrency())
-            ));
-        }
-
-        // 2) group by providerKey (hvis kjent) ellers merchantKey
-        Map<String, List<TxLite>> groups = new HashMap<>();
-        Map<String, ProviderMatcherService.Match> groupMatch = new HashMap<>();
-
-        for (TxLite tx : candidates) {
-            ProviderMatcherService.Match m = matcher.match(tx.rawDescription);
-            String groupKey = (m.knownProvider() && m.providerKey() != null)
-                    ? ("p:" + m.providerKey())
-                    : ("m:" + tx.merchantKey);
-
-            groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(tx);
-            groupMatch.putIfAbsent(groupKey, m);
-        }
-
-        // 3) build suggestions
-        List<SubscriptionSuggestion> out = new ArrayList<>();
-
-        for (var e : groups.entrySet()) {
-            String gk = e.getKey();
-            List<TxLite> list = e.getValue();
-            if (list.size() < 2) continue;
-
-            list.sort(Comparator.comparing(a -> a.date));
-            ProviderMatcherService.Match m = groupMatch.get(gk);
-
-            // ekskluder hvis allerede aktivt abonnement
-            if (m.knownProvider() && m.providerKey() != null && activeProviderKeys.contains(m.providerKey())) {
-                continue;
-            }
-            if (!m.knownProvider() && activeNameKeys.contains(ProviderMatcherService.normalizeMerchantKey(m.displayName()))) {
-                continue;
-            }
-
-            // beregn intervall via median av dag-differanser
-            List<Integer> diffs = new ArrayList<>();
-            for (int i = 1; i < list.size(); i++) {
-                diffs.add((int) (list.get(i).date.toEpochDay() - list.get(i - 1).date.toEpochDay()));
-            }
-
-            int medianDiff = medianInt(diffs);
-            Interval interval = classifyInterval(medianDiff);
-            if (interval == Interval.UNKNOWN) continue;
-
-            // “stabilitet”: hvor mange diffs ligger nær median?
-            int tol = interval.toleranceDays;
-            long stableCount = diffs.stream().filter(d -> Math.abs(d - medianDiff) <= tol).count();
-            double stability = diffs.isEmpty() ? 0 : (stableCount * 1.0 / diffs.size());
-
-            // beløpsstabilitet (median og relativ variasjon)
-            BigDecimal medianAmount = medianAmount(list.stream().map(x -> x.amount).collect(Collectors.toList()));
-            double relVar = relativeVariation(list, medianAmount);
-
-            // krav: kjente providers kan være litt “løsere”
-            double minStability = m.knownProvider() ? 0.45 : 0.65;
-            double maxRelVar = m.knownProvider() ? 0.35 : 0.18;
-
-            if (stability < minStability) continue;
-            if (relVar > maxRelVar) continue;
-
-            LocalDate last = list.get(list.size() - 1).date;
-            LocalDate next = last.plusDays(medianDiff);
-
-            // recency-filter: ikke foreslå ting som er “døde”
-            if (interval == Interval.MONTHLY || interval == Interval.WEEKLY || interval == Interval.BIWEEKLY) {
-                if (last.isBefore(today.minusDays(STALE_AFTER_DAYS))) continue;
-                if (next.isBefore(today.minusDays(GRACE_DAYS_FOR_NEXT))) continue;
-            }
-            if (interval == Interval.YEARLY) {
-                if (last.isBefore(today.minusDays(500))) continue;
-            }
-
-            int confidence = score(list.size(), stability, relVar, m.knownProvider());
-
-            String name = m.displayName();
-            String currency = list.get(list.size() - 1).currency;
-
-            out.add(new SubscriptionSuggestion(
-                    gk, // key
-                    name,
-                    medianAmount.setScale(2, RoundingMode.HALF_UP),
-                    currency,
-                    interval.label,
-                    last,
-                    next,
-                    list.size(),
-                    confidence,
-                    m.knownProvider(),
-                    m.providerKey(),
-                    m.cancelUrl()
-            ));
-        }
-
-        // sort: known først, så confidence
-        out.sort(Comparator
-                .comparing(SubscriptionSuggestion::isKnownProvider).reversed()
-                .thenComparing(SubscriptionSuggestion::getConfidence).reversed()
-                .thenComparing(SubscriptionSuggestion::getOccurrences).reversed()
-        );
-
-        // topp N (så UI ikke drukner)
-        if (out.size() > 50) return out.subList(0, 50);
-        return out;
+        return all.stream()
+                .filter(s -> !blocked.contains(s.getKey()))
+                .filter(s -> !subNames.contains(norm(s.getName())))
+                // filtrer ut “irrelevante” gamle forslag
+                .filter(s -> s.getLastChargeDate() != null && !s.getLastChargeDate().isBefore(today.minusDays(140)))
+                .filter(s -> s.getNextExpectedDate() == null || !s.getNextExpectedDate().isBefore(today.minusDays(7)))
+                .sorted(Comparator.comparingInt(SubscriptionSuggestion::getConfidence).reversed())
+                .limit(30)
+                .toList();
     }
 
-    private static boolean looksLikeNoise(String raw, String key) {
-        String a = raw.toLowerCase(Locale.ROOT);
-        String k = key.toLowerCase(Locale.ROOT);
+    /** Brukes av controller (accept) for å finne ett forslag selv om listen er filtrert/sortert */
+    public Optional<SubscriptionSuggestion> findOne(String userEmail, String key) {
+        return computeSuggestions(userEmail).stream().filter(s -> s.getKey().equals(key)).findFirst();
+    }
 
-        for (String w : EXCLUDE_KEYWORDS) {
-            if (a.contains(w) || k.contains(w)) return true;
+    // --- Intern: beregning ---
+
+    private List<SubscriptionSuggestion> computeSuggestions(String userEmail) {
+        OffsetDateTime after = OffsetDateTime.now().minusMonths(18);
+
+        List<BankTransaction> txs = txRepo.findByUserEmailAndTxDateAfterOrderByTxDateAsc(userEmail, after);
+
+        // kun “utgående” (abonnement trekk)
+        List<BankTransaction> outgoing = txs.stream()
+                .filter(t -> t.getAmount() != null && t.getAmount().compareTo(BigDecimal.ZERO) < 0)
+                .filter(t -> !isNoise(t))
+                .toList();
+
+        Map<String, List<BankTransaction>> groups = outgoing.stream()
+                .collect(Collectors.groupingBy(this::merchantKey, LinkedHashMap::new, Collectors.toList()));
+
+        LocalDate today = LocalDate.now();
+        List<SubscriptionSuggestion> result = new ArrayList<>();
+
+        for (var e : groups.entrySet()) {
+            String mKey = e.getKey();
+            List<BankTransaction> g = e.getValue();
+            if (g.size() < 3) continue;
+
+            // sorter på dato
+            g = g.stream().sorted(Comparator.comparing(BankTransaction::getTxDate)).toList();
+
+            // amount stats (bruk absolutt)
+            List<BigDecimal> amounts = g.stream().map(t -> t.getAmount().abs()).toList();
+            BigDecimal median = median(amounts);
+            BigDecimal mad = medianAbsDev(amounts, median);
+
+            // datoer / intervall
+            List<LocalDate> dates = g.stream().map(t -> t.getTxDate().toLocalDate()).toList();
+            IntervalGuess ig = guessInterval(dates);
+            if (ig.interval == null) continue;
+
+            LocalDate last = dates.get(dates.size() - 1);
+            LocalDate next = addInterval(last, ig.interval);
+
+            // filtrer veldig gammel “last”
+            if (last.isBefore(today.minusDays(200))) continue;
+
+            // confidence
+            int conf = scoreConfidence(g.size(), ig, median, mad, mKey);
+
+            // known provider?
+            var match = KnownMerchants.match(mKey, rawText(g));
+            boolean known = match.isPresent();
+            String displayName = match.map(KnownMerchants.Match::displayName).orElse(prettyName(mKey));
+            String cancelUrl = match.map(KnownMerchants.Match::cancelUrl).orElse(null);
+            String providerKey = norm(displayName);
+
+            // For kjente providers: litt mer tolerant
+            if (!known && conf < 65) continue;
+            if (known && conf < 55) continue;
+
+            // key (stabil)
+            String key = providerKey + "|" + ig.interval + "|" + moneyKey(median);
+
+            result.add(new SubscriptionSuggestion(
+                    key,
+                    displayName,
+                    median.setScale(2, RoundingMode.HALF_UP),
+                    firstCurrency(g),
+                    ig.interval,
+                    last,
+                    next,
+                    g.size(),
+                    conf,
+                    known,
+                    providerKey,
+                    cancelUrl
+            ));
         }
 
-        // Personoverføringer: “fra navn” / “til navn” uten firma-indikator
-        if (k.startsWith("fra ") || k.startsWith("til ")) return true;
+        return result;
+    }
 
-        // Typiske avgifter/renter (filene dine har mye av dette)
-        if (a.contains("sms varsling") || a.contains("pris efaktura") || a.contains("arspris") || a.contains("årspris")) return true;
+    // --- Heuristikk / hjelpere ---
+
+    private String firstCurrency(List<BankTransaction> g) {
+        for (var t : g) {
+            if (t.getCurrency() != null && !t.getCurrency().isBlank()) return t.getCurrency().trim().toUpperCase(Locale.ROOT);
+        }
+        return "NOK";
+    }
+
+    private String rawText(List<BankTransaction> g) {
+        StringBuilder sb = new StringBuilder();
+        for (var t : g) {
+            if (t.getDescription() != null) sb.append(t.getDescription()).append(" ");
+            if (t.getReference() != null) sb.append(t.getReference()).append(" ");
+        }
+        return sb.toString();
+    }
+
+    private String merchantKey(BankTransaction t) {
+        String s = safe(t.getDescription()) + " " + safe(t.getReference());
+        s = s.toLowerCase(Locale.ROOT);
+
+        // fjern støyord
+        s = s.replaceAll("\\b(kortkjøp|trans\\s*type|sms\\s*varsling|vipps|straksoverføring|avtalegiro|faktura)\\b", " ");
+        s = s.replaceAll("\\b(provisjon|renter|debetrenter|gebyr|kredittkort)\\b", " ");
+
+        // fjern tall/koder
+        s = s.replaceAll("\\d{2,}", " ");
+        s = s.replaceAll("[^a-zæøå ]+", " ");
+        s = s.replaceAll("\\s+", " ").trim();
+
+        // behold de første 4 ordene (stabil)
+        String[] parts = s.split(" ");
+        if (parts.length <= 4) return s;
+        return String.join(" ", Arrays.copyOfRange(parts, 0, 4));
+    }
+
+    private static final Pattern NOISE =
+            Pattern.compile(".*\\b(overføring|mellom\\s*egne|til\\s*betalt|fra\\s*|lønn|skatt|atm|uttak|kontant)\\b.*",
+                    Pattern.CASE_INSENSITIVE);
+
+    private boolean isNoise(BankTransaction t) {
+        String s = (safe(t.getDescription()) + " " + safe(t.getReference())).toLowerCase(Locale.ROOT);
+        if (NOISE.matcher(s).matches()) return true;
+
+        // “person-navn”-aktig (mange av dine falske forslag)
+        // veldig enkel: to ord der begge starter med bokstav og ikke er kjente vendors
+        if (s.contains(" jens ") || s.contains(" teigen ") || s.contains(" sætre ")) return true;
 
         return false;
     }
 
-    private enum Interval {
-        WEEKLY("WEEKLY", 7, 1),
-        BIWEEKLY("BIWEEKLY", 14, 2),
-        MONTHLY("MONTHLY", 30, 3),
-        QUARTERLY("QUARTERLY", 91, 7),
-        YEARLY("YEARLY", 365, 14),
-        UNKNOWN("UNKNOWN", 0, 0);
+    private record IntervalGuess(String interval, int medianDays, int spreadDays) {}
 
-        final String label;
-        final int approxDays;
-        final int toleranceDays;
+    private IntervalGuess guessInterval(List<LocalDate> dates) {
+        if (dates.size() < 3) return new IntervalGuess(null, 0, 0);
 
-        Interval(String label, int approxDays, int toleranceDays) {
-            this.label = label;
-            this.approxDays = approxDays;
-            this.toleranceDays = toleranceDays;
+        List<Integer> diffs = new ArrayList<>();
+        for (int i = 1; i < dates.size(); i++) {
+            int d = (int) Duration.between(dates.get(i - 1).atStartOfDay(), dates.get(i).atStartOfDay()).toDays();
+            if (d > 0) diffs.add(d);
         }
+        if (diffs.size() < 2) return new IntervalGuess(null, 0, 0);
+
+        diffs.sort(Integer::compareTo);
+        int med = diffs.get(diffs.size() / 2);
+        int spread = diffs.get(diffs.size() - 1) - diffs.get(0);
+
+        // ukentlig
+        if (med >= 6 && med <= 8) return new IntervalGuess("WEEKLY", med, spread);
+
+        // månedlig
+        if (med >= 26 && med <= 33) return new IntervalGuess("MONTHLY", med, spread);
+
+        // årlig
+        if (med >= 330 && med <= 400) return new IntervalGuess("YEARLY", med, spread);
+
+        return new IntervalGuess(null, med, spread);
     }
 
-    private static Interval classifyInterval(int d) {
-        if (between(d, 6, 8)) return Interval.WEEKLY;
-        if (between(d, 12, 16)) return Interval.BIWEEKLY;
-        if (between(d, 27, 33)) return Interval.MONTHLY;
-        if (between(d, 80, 105)) return Interval.QUARTERLY;
-        if (between(d, 350, 380)) return Interval.YEARLY;
-        return Interval.UNKNOWN;
+    private LocalDate addInterval(LocalDate d, String interval) {
+        return switch (interval) {
+            case "WEEKLY" -> d.plusWeeks(1);
+            case "MONTHLY" -> d.plusMonths(1);
+            case "YEARLY" -> d.plusYears(1);
+            default -> d.plusMonths(1);
+        };
     }
 
-    private static boolean between(int v, int a, int b) {
-        return v >= a && v <= b;
-    }
+    private int scoreConfidence(int occurrences, IntervalGuess ig, BigDecimal median, BigDecimal mad, String mKey) {
+        int score = 0;
 
-    private static int score(int occurrences, double stability, double relVar, boolean known) {
-        int c = 0;
-        c += Math.min(occurrences, 12) * 6;                 // opptil ~72
-        c += (int) Math.round(stability * 20);              // opptil 20
-        c += (int) Math.round((1.0 - Math.min(relVar, 1.0)) * 10); // opptil 10
-        if (known) c += 10;
-        if (c > 99) c = 99;
-        if (c < 1) c = 1;
-        return c;
-    }
+        // flere observasjoner => mer sikker
+        score += Math.min(40, occurrences * 5);
 
-    private static int medianInt(List<Integer> xs) {
-        if (xs == null || xs.isEmpty()) return 0;
-        List<Integer> s = new ArrayList<>(xs);
-        s.sort(Integer::compareTo);
-        int mid = s.size() / 2;
-        return (s.size() % 2 == 1) ? s.get(mid) : (s.get(mid - 1) + s.get(mid)) / 2;
-    }
+        // jevn intervall
+        score += (ig.spreadDays <= 5 ? 35 : ig.spreadDays <= 10 ? 25 : 10);
 
-    private static BigDecimal medianAmount(List<BigDecimal> xs) {
-        if (xs == null || xs.isEmpty()) return BigDecimal.ZERO;
-        List<BigDecimal> s = new ArrayList<>(xs);
-        s.sort(Comparator.naturalOrder());
-        int mid = s.size() / 2;
-        if (s.size() % 2 == 1) return s.get(mid);
-        return s.get(mid - 1).add(s.get(mid)).divide(new BigDecimal("2"), 4, RoundingMode.HALF_UP);
-    }
+        // jevnt beløp (MAD lav)
+        // noen leverandører varierer (strøm/forsikring) => ikke straff for hardt
+        boolean variableOk = mKey.contains("tibber") || mKey.contains("lyse") || mKey.contains("tryg");
 
-    private static double relativeVariation(List<TxLite> list, BigDecimal median) {
-        if (median == null || median.compareTo(BigDecimal.ZERO) == 0) return 1.0;
-        double m = median.doubleValue();
-        double avgAbsDiff = 0.0;
-        for (TxLite t : list) {
-            avgAbsDiff += Math.abs(t.amount.doubleValue() - m);
+        if (variableOk) score += 15;
+        else {
+            BigDecimal rel = median.signum() == 0 ? BigDecimal.ONE : mad.divide(median, 4, RoundingMode.HALF_UP);
+            if (rel.compareTo(new BigDecimal("0.02")) <= 0) score += 25;
+            else if (rel.compareTo(new BigDecimal("0.06")) <= 0) score += 18;
+            else score += 8;
         }
-        avgAbsDiff /= Math.max(1, list.size());
-        return avgAbsDiff / m;
+
+        return Math.max(0, Math.min(99, score));
     }
 
-    private static String safe(String s) {
-        return s == null ? "" : s.trim();
+    private BigDecimal median(List<BigDecimal> xs) {
+        List<BigDecimal> s = xs.stream().filter(Objects::nonNull).sorted().toList();
+        if (s.isEmpty()) return BigDecimal.ZERO;
+        return s.get(s.size() / 2);
     }
 
-    private record TxLite(LocalDate date, String rawDescription, String merchantKey, BigDecimal amount, String currency) {}
+    private BigDecimal medianAbsDev(List<BigDecimal> xs, BigDecimal med) {
+        List<BigDecimal> dev = xs.stream()
+                .filter(Objects::nonNull)
+                .map(x -> x.subtract(med).abs())
+                .sorted()
+                .toList();
+        if (dev.isEmpty()) return BigDecimal.ZERO;
+        return dev.get(dev.size() / 2);
+    }
+
+    private String moneyKey(BigDecimal x) {
+        if (x == null) return "0";
+        return x.setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private String prettyName(String key) {
+        if (key == null || key.isBlank()) return "Ukjent";
+        String[] p = key.split(" ");
+        StringBuilder sb = new StringBuilder();
+        for (String w : p) {
+            if (w.isBlank()) continue;
+            sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1)).append(" ");
+        }
+        return sb.toString().trim();
+    }
+
+    private static String safe(String s) { return s == null ? "" : s.trim(); }
+    private static String norm(String s) { return safe(s).toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim(); }
 }

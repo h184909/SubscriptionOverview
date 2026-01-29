@@ -28,18 +28,52 @@ public class SubscriptionController {
         if (email == null) return "redirect:/login";
 
         List<Subscription> subs = subscriptionRepository.findByUserEmailOrderByCreatedAtDesc(email);
+
+        // ✅ NYTT: auto-rull neste trekkdato hvis den er i dag eller tidligere
+        LocalDate today = LocalDate.now();
+        boolean changed = false;
+
+        for (Subscription s : subs) {
+            if (!s.isActive()) continue;
+            if (s.getNextChargeDate() == null) continue;
+
+            LocalDate next = s.getNextChargeDate();
+            if (!next.isAfter(today)) {
+                LocalDate rolled = rollForward(next, s.getInterval(), today);
+                if (!rolled.equals(next)) {
+                    s.setNextChargeDate(rolled);
+                    changed = true;
+                }
+            }
+        }
+        if (changed) subscriptionRepository.saveAll(subs);
+
         model.addAttribute("subs", subs);
 
-        // ✅ cancel-links pr subscription (uten DB-endring)
-        // ✅ bruk UUID som nøkkel (matcher JSP: cancelLinks[s.id])
-        Map<UUID, String> cancelLinks = new HashMap<>();
+        // ✅ Cancel-links på subscriptions-siden
+        Map<String, String> cancelLinks = new HashMap<>();
         for (Subscription s : subs) {
             var m = KnownMerchants.match(s.getName(), s.getName());
-            m.ifPresent(match -> cancelLinks.put(s.getId(), match.cancelUrl()));
+            m.ifPresent(match -> cancelLinks.put(s.getId().toString(), match.cancelUrl()));
         }
         model.addAttribute("cancelLinks", cancelLinks);
 
         return "subscriptions";
+    }
+
+    private LocalDate rollForward(LocalDate next, String interval, LocalDate today) {
+        LocalDate d = next;
+
+        // Rull til “etter i dag”
+        while (!d.isAfter(today)) {
+            d = switch (interval) {
+                case "WEEKLY" -> d.plusWeeks(1);
+                case "MONTHLY" -> d.plusMonths(1);
+                case "YEARLY" -> d.plusYears(1);
+                default -> d.plusMonths(1);
+            };
+        }
+        return d;
     }
 
     @GetMapping("/app/subscriptions/new")
@@ -47,7 +81,6 @@ public class SubscriptionController {
         if (session.getAttribute(LoginController.SESSION_USER_EMAIL) == null) {
             return "redirect:/login";
         }
-        model.addAttribute("activePage", "subscriptions");
         model.addAttribute("form", new SubscriptionForm());
         return "subscription_new";
     }
@@ -129,6 +162,7 @@ public class SubscriptionController {
 
         Subscription sub = subscriptionRepository.findById(uuid).orElse(null);
         if (sub == null) return null;
+
         if (!email.equals(sub.getUserEmail())) return null;
 
         return sub;
