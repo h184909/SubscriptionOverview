@@ -1,0 +1,14 @@
+# IntelliJ
+.idea/
+*.iml
+
+# Maven / build
+target/
+
+# Local secrets / overrides
+src/main/resources/application-local.properties
+src/main/resources/*.json
+
+/*.iml
+*.log
+.DS_Store
