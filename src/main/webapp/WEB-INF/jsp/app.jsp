@@ -13,7 +13,7 @@
     <div class="brand">
       <div class="logo"></div>
       <div>
-        <h1>SubscriptionOverview</h1>
+        <h1>SubscriptionOverview :)</h1>
         <div class="sub">Dashboard</div>
       </div>
     </div>

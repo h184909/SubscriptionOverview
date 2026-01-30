@@ -29,7 +29,7 @@ public class SubscriptionController {
 
         List<Subscription> subs = subscriptionRepository.findByUserEmailOrderByCreatedAtDesc(email);
 
-        // ✅ NYTT: auto-rull neste trekkdato hvis den er i dag eller tidligere
+        // ✅ auto-rull neste trekkdato hvis den er i dag eller tidligere
         LocalDate today = LocalDate.now();
         boolean changed = false;
 
@@ -41,7 +41,7 @@ public class SubscriptionController {
             if (!next.isAfter(today)) {
                 LocalDate rolled = rollForward(next, s.getInterval(), today);
                 if (!rolled.equals(next)) {
-                    s.setNextChargeDate(rolled);
+                    s.setNextChargeDate(rolled); // <-- krever setter på entity
                     changed = true;
                 }
             }
@@ -50,7 +50,7 @@ public class SubscriptionController {
 
         model.addAttribute("subs", subs);
 
-        // ✅ Cancel-links på subscriptions-siden
+        // ✅ cancel-links på subscriptions
         Map<String, String> cancelLinks = new HashMap<>();
         for (Subscription s : subs) {
             var m = KnownMerchants.match(s.getName(), s.getName());
@@ -63,8 +63,6 @@ public class SubscriptionController {
 
     private LocalDate rollForward(LocalDate next, String interval, LocalDate today) {
         LocalDate d = next;
-
-        // Rull til “etter i dag”
         while (!d.isAfter(today)) {
             d = switch (interval) {
                 case "WEEKLY" -> d.plusWeeks(1);

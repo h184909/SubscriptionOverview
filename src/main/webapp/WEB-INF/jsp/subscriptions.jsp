@@ -86,7 +86,7 @@
               <td>
                 <c:choose>
                   <c:when test="${s.active}">
-                    <c:set var="cancelUrl" value="${cancelLinks[s.id]}" />
+                    <c:set var="cancelUrl" value="${cancelLinks[s.id.toString()]}" />
                     <c:if test="${not empty cancelUrl}">
                       <a href="${cancelUrl}" target="_blank" rel="noopener">Avslutt</a>
                     </c:if>

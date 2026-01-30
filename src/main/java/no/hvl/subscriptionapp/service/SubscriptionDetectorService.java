@@ -42,7 +42,7 @@ public class SubscriptionDetectorService {
                 .map(SuggestionDecision::getSuggestionKey)
                 .collect(Collectors.toSet());
 
-        // fjern de som allerede er abonnement (navn-likhet / providerKey)
+        // fjern de som allerede er abonnement (navn-likhet)
         List<Subscription> subs = subRepo.findByUserEmailOrderByCreatedAtDesc(userEmail);
         Set<String> subNames = subs.stream()
                 .map(s -> norm(s.getName()))
@@ -53,11 +53,11 @@ public class SubscriptionDetectorService {
         return all.stream()
                 .filter(s -> !blocked.contains(s.getKey()))
                 .filter(s -> !subNames.contains(norm(s.getName())))
-                // filtrer ut “irrelevante” gamle forslag
-                .filter(s -> s.getLastChargeDate() != null && !s.getLastChargeDate().isBefore(today.minusDays(140)))
-                .filter(s -> s.getNextExpectedDate() == null || !s.getNextExpectedDate().isBefore(today.minusDays(7)))
+                // fjern “irrelevante” gamle forslag
+                .filter(s -> s.getLastChargeDate() != null && !s.getLastChargeDate().isBefore(today.minusDays(180)))
+                .filter(s -> s.getNextExpectedDate() == null || !s.getNextExpectedDate().isBefore(today.minusDays(10)))
                 .sorted(Comparator.comparingInt(SubscriptionSuggestion::getConfidence).reversed())
-                .limit(30)
+                .limit(40)
                 .toList();
     }
 
@@ -69,8 +69,7 @@ public class SubscriptionDetectorService {
     // --- Intern: beregning ---
 
     private List<SubscriptionSuggestion> computeSuggestions(String userEmail) {
-        OffsetDateTime after = OffsetDateTime.now().minusMonths(18);
-
+        OffsetDateTime after = OffsetDateTime.now().minusMonths(24);
         List<BankTransaction> txs = txRepo.findByUserEmailAndTxDateAfterOrderByTxDateAsc(userEmail, after);
 
         // kun “utgående” (abonnement trekk)
@@ -95,8 +94,8 @@ public class SubscriptionDetectorService {
 
             // amount stats (bruk absolutt)
             List<BigDecimal> amounts = g.stream().map(t -> t.getAmount().abs()).toList();
-            BigDecimal median = median(amounts);
-            BigDecimal mad = medianAbsDev(amounts, median);
+            BigDecimal med = median(amounts);
+            BigDecimal mad = medianAbsDev(amounts, med);
 
             // datoer / intervall
             List<LocalDate> dates = g.stream().map(t -> t.getTxDate().toLocalDate()).toList();
@@ -107,10 +106,10 @@ public class SubscriptionDetectorService {
             LocalDate next = addInterval(last, ig.interval);
 
             // filtrer veldig gammel “last”
-            if (last.isBefore(today.minusDays(200))) continue;
+            if (last.isBefore(today.minusDays(240))) continue;
 
             // confidence
-            int conf = scoreConfidence(g.size(), ig, median, mad, mKey);
+            int conf = scoreConfidence(g.size(), ig, med, mad, mKey);
 
             // known provider?
             var match = KnownMerchants.match(mKey, rawText(g));
@@ -119,17 +118,18 @@ public class SubscriptionDetectorService {
             String cancelUrl = match.map(KnownMerchants.Match::cancelUrl).orElse(null);
             String providerKey = norm(displayName);
 
-            // For kjente providers: litt mer tolerant
-            if (!known && conf < 65) continue;
+            // For kjente providers: mer tolerant
+            if (!known && conf < 70) continue;
             if (known && conf < 55) continue;
 
-            // key (stabil)
-            String key = providerKey + "|" + ig.interval + "|" + moneyKey(median);
+            // stabil key (bruk avrundet beløp for å unngå små avvik)
+            BigDecimal rounded = med.setScale(0, RoundingMode.HALF_UP);
+            String key = providerKey + "|" + ig.interval + "|" + rounded.toPlainString();
 
             result.add(new SubscriptionSuggestion(
                     key,
                     displayName,
-                    median.setScale(2, RoundingMode.HALF_UP),
+                    med.setScale(2, RoundingMode.HALF_UP),
                     firstCurrency(g),
                     ig.interval,
                     last,
@@ -170,6 +170,7 @@ public class SubscriptionDetectorService {
         // fjern støyord
         s = s.replaceAll("\\b(kortkjøp|trans\\s*type|sms\\s*varsling|vipps|straksoverføring|avtalegiro|faktura)\\b", " ");
         s = s.replaceAll("\\b(provisjon|renter|debetrenter|gebyr|kredittkort)\\b", " ");
+        s = s.replaceAll("\\b(til\\s*betalt|fra\\s*betalt)\\b", " ");
 
         // fjern tall/koder
         s = s.replaceAll("\\d{2,}", " ");
@@ -183,17 +184,19 @@ public class SubscriptionDetectorService {
     }
 
     private static final Pattern NOISE =
-            Pattern.compile(".*\\b(overføring|mellom\\s*egne|til\\s*betalt|fra\\s*|lønn|skatt|atm|uttak|kontant)\\b.*",
+            Pattern.compile(".*\\b(overføring|mellom\\s*egne|lønn|skatt|atm|uttak|kontant|refund|tilbakebetaling)\\b.*",
                     Pattern.CASE_INSENSITIVE);
 
     private boolean isNoise(BankTransaction t) {
         String s = (safe(t.getDescription()) + " " + safe(t.getReference())).toLowerCase(Locale.ROOT);
         if (NOISE.matcher(s).matches()) return true;
 
-        // “person-navn”-aktig (mange av dine falske forslag)
-        // veldig enkel: to ord der begge starter med bokstav og ikke er kjente vendors
-        if (s.contains(" jens ") || s.contains(" teigen ") || s.contains(" sætre ")) return true;
-
+        // Personbetalinger (typisk falske forslag) – enkel “navn”-heuristikk
+        if (s.contains(" fra ") || s.contains(" til ")) {
+            // hvis den også ser ut som personnavn, dropp
+            if (s.contains(" jens ") || s.contains(" christian ") || s.contains(" teigen ") || s.contains(" sætre "))
+                return true;
+        }
         return false;
     }
 
@@ -213,13 +216,8 @@ public class SubscriptionDetectorService {
         int med = diffs.get(diffs.size() / 2);
         int spread = diffs.get(diffs.size() - 1) - diffs.get(0);
 
-        // ukentlig
         if (med >= 6 && med <= 8) return new IntervalGuess("WEEKLY", med, spread);
-
-        // månedlig
-        if (med >= 26 && med <= 33) return new IntervalGuess("MONTHLY", med, spread);
-
-        // årlig
+        if (med >= 26 && med <= 35) return new IntervalGuess("MONTHLY", med, spread);
         if (med >= 330 && med <= 400) return new IntervalGuess("YEARLY", med, spread);
 
         return new IntervalGuess(null, med, spread);
@@ -237,21 +235,15 @@ public class SubscriptionDetectorService {
     private int scoreConfidence(int occurrences, IntervalGuess ig, BigDecimal median, BigDecimal mad, String mKey) {
         int score = 0;
 
-        // flere observasjoner => mer sikker
-        score += Math.min(40, occurrences * 5);
+        score += Math.min(45, occurrences * 6);
+        score += (ig.spreadDays <= 5 ? 35 : ig.spreadDays <= 10 ? 25 : 12);
 
-        // jevn intervall
-        score += (ig.spreadDays <= 5 ? 35 : ig.spreadDays <= 10 ? 25 : 10);
-
-        // jevnt beløp (MAD lav)
-        // noen leverandører varierer (strøm/forsikring) => ikke straff for hardt
-        boolean variableOk = mKey.contains("tibber") || mKey.contains("lyse") || mKey.contains("tryg");
-
+        boolean variableOk = mKey.contains("tibber") || mKey.contains("lyse") || mKey.contains("tryg") || mKey.contains("flyt");
         if (variableOk) score += 15;
         else {
             BigDecimal rel = median.signum() == 0 ? BigDecimal.ONE : mad.divide(median, 4, RoundingMode.HALF_UP);
             if (rel.compareTo(new BigDecimal("0.02")) <= 0) score += 25;
-            else if (rel.compareTo(new BigDecimal("0.06")) <= 0) score += 18;
+            else if (rel.compareTo(new BigDecimal("0.07")) <= 0) score += 18;
             else score += 8;
         }
 
@@ -272,11 +264,6 @@ public class SubscriptionDetectorService {
                 .toList();
         if (dev.isEmpty()) return BigDecimal.ZERO;
         return dev.get(dev.size() / 2);
-    }
-
-    private String moneyKey(BigDecimal x) {
-        if (x == null) return "0";
-        return x.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
     private String prettyName(String key) {

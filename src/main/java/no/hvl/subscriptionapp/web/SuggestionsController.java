@@ -59,10 +59,9 @@ public class SuggestionsController {
 
         SubscriptionSuggestion s = found.get();
 
-        // lag abonnement
+        // best effort: hvis next er gammel, flytt frem
         LocalDate next = s.getNextExpectedDate();
         if (next != null && next.isBefore(LocalDate.now().minusDays(7))) {
-            // hvis gammel “neste”, sett til frem i tid (best effort)
             next = LocalDate.now().plusMonths(1);
         }
 
@@ -77,7 +76,7 @@ public class SuggestionsController {
         );
         subscriptionRepository.save(sub);
 
-        // markér som accepted (så den ikke vises igjen)
+        // markér accepted => skjules i fremtiden
         decisionRepository.findByUserEmailAndSuggestionKey(email, key)
                 .orElseGet(() -> decisionRepository.save(new SuggestionDecision(email, key, "ACCEPTED")));
 
@@ -90,6 +89,7 @@ public class SuggestionsController {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
         if (email == null) return "redirect:/login";
 
+        // markér rejected => skjules i fremtiden
         decisionRepository.findByUserEmailAndSuggestionKey(email, key)
                 .orElseGet(() -> decisionRepository.save(new SuggestionDecision(email, key, "REJECTED")));
 
