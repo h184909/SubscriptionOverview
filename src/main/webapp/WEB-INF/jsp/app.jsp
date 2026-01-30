@@ -29,7 +29,7 @@
   <div class="grid two">
     <div class="card">
       <h3>Din status</h3>
-      <div class="muted">Innlogget som: <b>${email}  hei</b></div>
+      <div class="muted">Innlogget som: <b>${email}</b></div>
 
       <hr class="sep"/>
 
