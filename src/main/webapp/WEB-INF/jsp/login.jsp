@@ -24,7 +24,7 @@
 
   <div class="card" style="max-width:520px; margin:14px auto 0;">
     <h3>Logg inn</h3>
-    <div class="muted">Skriv inn e-post og passord. :)</div>
+    <div class="muted">Skriv inn e-post og passord.</div>
     <hr class="sep"/>
 
     <c:if test="${not empty loginError}">
