@@ -28,7 +28,7 @@
 
   <div class="grid two">
     <div class="card">
-      <h3>Din status :)</h3>
+      <h3>Din status</h3>
       <div class="muted">Innlogget som: <b>${email}</b></div>
 
       <hr class="sep"/>
@@ -96,7 +96,7 @@
   </div>
 
   <div class="card">
-    <h3>Aktive abonnement :)</h3>
+    <h3>Aktive abonnement</h3>
 
     <c:if test="${empty subs}">
       <div class="muted">Ingen aktive abonnement 🎉</div>
