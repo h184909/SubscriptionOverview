@@ -22,7 +22,10 @@ public final class KnownMerchants {
             rule("spotify", ".*\\bspotify\\b.*", "Spotify", "https://www.spotify.com/account/subscription/"),
             rule("disney_plus", ".*\\bdisney\\s*plus\\b.*|.*\\bdisney\\+\\b.*", "Disney+", "https://www.disneyplus.com/account/subscription"),
             rule("tv2_play", ".*\\btv\\s*2\\b.*|.*\\btv2\\b.*", "TV 2 Play", "https://play.tv2.no/konto"),
-            rule("viaplay", ".*\\bviaplay\\b.*", "Viaplay", "https://viaplay.com/no-no/account"),
+            rule("viaplay",
+                    ".*\\bvia\\s*play\\b.*|.*\\bviaplay\\b.*|.*viaplay\\.(com|no|se|dk).*|.*\\bviaplay\\s*group\\b.*",
+                    "Viaplay",
+                    "https://viaplay.com/no-no/account"),
             rule("prime_video", ".*\\bprime\\s*video\\b.*|.*primevideo\\..*|.*\\bamazon\\s*prime\\b.*", "Prime Video", "https://www.amazon.com/amazonprime"),
             rule("youtube_premium", ".*\\byoutube\\b.*|.*paid_memberships.*", "YouTube Premium", "https://www.youtube.com/paid_memberships"),
 
