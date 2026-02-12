@@ -34,6 +34,12 @@
     </div>
   </c:if>
 
+<form method="post" action="${pageContext.request.contextPath}/app/suggestions/reset-hidden" style="display:inline;">
+    <button type="submit" class="btn btn-secondary">
+        Vis avviste forslag igjen
+    </button>
+</form>
+
   <!-- Import-status -->
   <div id="importBox" class="card">
     <div class="row" style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
