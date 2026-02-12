@@ -34,12 +34,6 @@
     </div>
   </c:if>
 
-<form method="post" action="${pageContext.request.contextPath}/app/suggestions/reset-hidden" style="display:inline;">
-    <button type="submit" class="btn btn-secondary">
-        Vis avviste forslag igjen
-    </button>
-</form>
-
   <!-- Import-status -->
   <div id="importBox" class="card">
     <div class="row" style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
@@ -97,8 +91,21 @@
 
     <!-- KJENTE TJENESTER -->
     <div class="card">
-      <h3>Kjente tjenester</h3>
-      <div class="muted">Tjenester vi gjenkjenner.</div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div>
+          <h3 style="margin:0;">Kjente tjenester</h3>
+          <div class="muted">Tjenester vi gjenkjenner.</div>
+        </div>
+
+        <!-- ✅ NYTT: knapp for å vise avviste forslag igjen (kun hvis noe er skjult) -->
+        <c:if test="${hiddenCount != null && hiddenCount > 0}">
+          <form method="post" action="${pageContext.request.contextPath}/app/suggestions/reset-hidden" style="margin:0;">
+            <button type="submit" class="btn btn-secondary">
+              Vis avviste forslag igjen (<c:out value="${hiddenCount}" />)
+            </button>
+          </form>
+        </c:if>
+      </div>
 
       <c:set var="hasKnown" value="false" />
       <c:forEach var="s" items="${suggestions}">
