@@ -96,7 +96,7 @@
   </div>
 
   <div class="card">
-    <h3>:) Aktive abonnement</h3>
+    <h3>Aktive abonnement</h3>
 
     <c:if test="${empty subs}">
       <div class="muted">Ingen aktive abonnement 🎉</div>
