@@ -41,7 +41,7 @@ public class SubscriptionController {
             if (!next.isAfter(today)) {
                 LocalDate rolled = rollForward(next, s.getInterval(), today);
                 if (!rolled.equals(next)) {
-                    s.setNextChargeDate(rolled); // <-- krever setter på entity
+                    s.setNextChargeDate(rolled);
                     changed = true;
                 }
             }
@@ -53,7 +53,12 @@ public class SubscriptionController {
         // ✅ cancel-links på subscriptions
         Map<String, String> cancelLinks = new HashMap<>();
         for (Subscription s : subs) {
-            var m = KnownMerchants.match(s.getName(), s.getName());
+            // prøv providerKey først (hvis den finnes), ellers name
+            String key = (s.getProviderKey() != null && !s.getProviderKey().isBlank())
+                    ? s.getProviderKey()
+                    : s.getName();
+
+            var m = KnownMerchants.match(key, s.getName());
             m.ifPresent(match -> cancelLinks.put(s.getId().toString(), match.cancelUrl()));
         }
         model.addAttribute("cancelLinks", cancelLinks);
@@ -63,10 +68,12 @@ public class SubscriptionController {
 
     private LocalDate rollForward(LocalDate next, String interval, LocalDate today) {
         LocalDate d = next;
-        while (!d.isAfter(today)) {
+        int guard = 0;
+        while (!d.isAfter(today) && guard++ < 500) {
             d = switch (interval) {
                 case "WEEKLY" -> d.plusWeeks(1);
                 case "MONTHLY" -> d.plusMonths(1);
+                case "QUARTERLY" -> d.plusMonths(3);
                 case "YEARLY" -> d.plusYears(1);
                 default -> d.plusMonths(1);
             };
@@ -115,6 +122,36 @@ public class SubscriptionController {
         );
 
         subscriptionRepository.save(sub);
+        return "redirect:/app/subscriptions";
+    }
+
+    // ✅ NYTT: rename-endpoint
+    @PostMapping("/app/subscriptions/rename")
+    public String rename(HttpSession session,
+                         @RequestParam("id") String id,
+                         @RequestParam("name") String name) {
+
+        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
+        if (email == null) return "redirect:/login";
+
+        if (name == null || name.trim().isBlank()) return "redirect:/app/subscriptions";
+        String newName = name.trim();
+        if (newName.length() > 80) newName = newName.substring(0, 80);
+
+        UUID uuid;
+        try {
+            uuid = UUID.fromString(id);
+        } catch (Exception e) {
+            return "redirect:/app/subscriptions";
+        }
+
+        Subscription sub = subscriptionRepository.findById(uuid).orElse(null);
+        if (sub == null) return "redirect:/app/subscriptions";
+        if (!email.equalsIgnoreCase(sub.getUserEmail())) return "redirect:/app/subscriptions";
+
+        sub.setName(newName);
+        subscriptionRepository.save(sub);
+
         return "redirect:/app/subscriptions";
     }
 

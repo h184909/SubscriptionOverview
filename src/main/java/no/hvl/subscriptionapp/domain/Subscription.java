@@ -93,6 +93,7 @@ public class Subscription {
     public UUID getId() { return id; }
     public String getUserEmail() { return userEmail; }
     public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
     public BigDecimal getAmount() { return amount; }
     public String getCurrency() { return currency; }
     public String getInterval() { return interval; }
