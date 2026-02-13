@@ -40,19 +40,35 @@ public class SubscriptionDetectorService {
     public List<SubscriptionSuggestion> detect(String userEmail) {
         List<SubscriptionSuggestion> all = computeSuggestions(userEmail);
 
+        // permanent blokk (accepted/rejected som lagres i DB)
         Set<String> blocked = decisionRepo.findByUserEmail(userEmail).stream()
                 .map(SuggestionDecision::getSuggestionKey)
                 .collect(Collectors.toSet());
 
+        // eksisterende subscriptions
         List<Subscription> subs = subRepo.findByUserEmailOrderByCreatedAtDesc(userEmail);
 
+        // ✅ providerKey-baserte keys (stabilt selv om brukeren renamer name)
         Set<String> subProviderKeys = subs.stream()
                 .map(s -> norm(firstNonBlank(s.getProviderKey(), s.getName())))
+                .filter(x -> !x.isBlank())
+                .collect(Collectors.toSet());
+
+        // fallback: filtrer også på navn for subscriptions uten providerKey
+        Set<String> subNames = subs.stream()
+                .map(s -> norm(s.getName()))
+                .filter(x -> !x.isBlank())
                 .collect(Collectors.toSet());
 
         return all.stream()
                 .filter(s -> !blocked.contains(s.getKey()))
-                .filter(s -> s.getProviderKey() == null || !subProviderKeys.contains(norm(s.getProviderKey())))
+                // ✅ viktig: filtrer på providerKey
+                .filter(s -> {
+                    String pk = norm(firstNonBlank(s.getProviderKey(), s.getName()));
+                    return pk.isBlank() || !subProviderKeys.contains(pk);
+                })
+                // ekstra fallback: filtrer på navn (hindrer duplicates hvis pk mangler)
+                .filter(s -> !subNames.contains(norm(s.getName())))
                 .sorted(Comparator.comparingInt(SubscriptionSuggestion::getConfidence).reversed())
                 .limit(120)
                 .toList();
@@ -87,7 +103,7 @@ public class SubscriptionDetectorService {
 
             boolean known = gKey.startsWith("prov:");
 
-            // ✅ 2 forekomster er nok
+            // 2 forekomster er nok
             if (g.size() < 2) continue;
 
             g = g.stream().sorted(Comparator.comparing(BankTransaction::getTxDate)).toList();
@@ -103,7 +119,7 @@ public class SubscriptionDetectorService {
 
             LocalDate last = dates.get(dates.size() - 1);
 
-            // ✅ Ikke vis veldig gamle forslag (hindrer "støvete" data)
+            // ikke vis veldig gamle forslag
             if (last.isBefore(today.minusDays(MAX_LAST_AGE_DAYS))) continue;
 
             // beregn "neste" + rull frem til etter i dag
@@ -148,31 +164,25 @@ public class SubscriptionDetectorService {
         return result;
     }
 
-    // ---------- grouping / heuristikk ----------
-
     private String groupKey(BankTransaction t) {
         String raw = (safe(t.getDescription()) + " " + safe(t.getReference())).toLowerCase(Locale.ROOT);
 
-        // 1) prøv kjente leverandører først
         Optional<KnownMerchants.Match> match = KnownMerchants.match(raw, raw);
         if (match.isPresent()) return "prov:" + match.get().providerKey();
 
-        // 2) fallback for viktige ting hvis KnownMerchants ikke matcher godt nok
-        // (Dette gjør at "Viaplay Stockholm" blir kjent selv om regex ikke treffer)
+        // fallback for viktige ting hvis KnownMerchants ikke matcher
         if (raw.contains("viaplay")) return "prov:viaplay";
         if (raw.contains("spotify")) return "prov:spotify";
         if (raw.contains("netflix")) return "prov:netflix";
         if (raw.contains("disney")) return "prov:disney_plus";
         if (raw.contains("tv2") || raw.contains("tv 2")) return "prov:tv2_play";
 
-        // normaliser "ukjent" uten å kappe til 4 ord
         raw = raw.replaceAll("\\b(kortkjøp|trans\\s*type|sms\\s*varsling|vipps|straksoverføring|avtalegiro|faktura)\\b", " ");
         raw = raw.replaceAll("\\b(provisjon|renter|debetrenter|gebyr|kredittkort)\\b", " ");
         raw = raw.replaceAll("\\d+", " ");
         raw = raw.replaceAll("[^a-zæøå. ]", " ");
         raw = raw.replaceAll("\\s+", " ").trim();
 
-        // prøv å bruke domenet hvis det finnes
         for (String p : raw.split(" ")) {
             if (p.contains(".") && p.length() >= 4) return p;
         }
@@ -206,7 +216,6 @@ public class SubscriptionDetectorService {
 
         diffs.sort(Integer::compareTo);
 
-        // 2 forekomster: "best effort"
         if (diffs.size() == 1) {
             int d = diffs.get(0);
             if (d >= 5 && d <= 12) return new IntervalGuess("WEEKLY");
@@ -216,7 +225,6 @@ public class SubscriptionDetectorService {
             return new IntervalGuess(null);
         }
 
-        // 3+ forekomster: median
         int median = diffs.get(diffs.size() / 2);
         if (median >= 6 && median <= 10) return new IntervalGuess("WEEKLY");
         if (median >= 18 && median <= 75) return new IntervalGuess("MONTHLY");
@@ -236,7 +244,6 @@ public class SubscriptionDetectorService {
         };
     }
 
-    // ✅ ruller frem "neste" til den er etter i dag
     private LocalDate rollForward(LocalDate next, String interval, LocalDate today) {
         if (next == null) return null;
         LocalDate d = next;

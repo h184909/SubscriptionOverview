@@ -95,7 +95,6 @@ public class SuggestionsController {
         return "redirect:/app/suggestions";
     }
 
-    // ✅ BULK ACCEPT
     @PostMapping("/app/suggestions/accept-bulk")
     public String acceptBulk(HttpSession session, @RequestParam(value = "keys", required = false) List<String> keys) {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
@@ -134,7 +133,6 @@ public class SuggestionsController {
         return "redirect:/app/subscriptions";
     }
 
-    // ✅ BULK REJECT
     @PostMapping("/app/suggestions/reject-bulk")
     public String rejectBulk(HttpSession session, @RequestParam(value = "keys", required = false) List<String> keys) {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
@@ -148,11 +146,9 @@ public class SuggestionsController {
         int rejected = 0;
 
         for (String key : keys) {
-            // slett evt tidligere decision
             decisionRepository.findByUserEmailAndSuggestionKey(email, key)
                     .ifPresent(decisionRepository::delete);
 
-            // skjul i session
             getHiddenKeys(session).add(key);
             rejected++;
         }
@@ -161,7 +157,6 @@ public class SuggestionsController {
         return "redirect:/app/suggestions";
     }
 
-    // reset skjulte (session)
     @PostMapping("/app/suggestions/reset-hidden")
     public String resetHidden(HttpSession session) {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
@@ -172,10 +167,10 @@ public class SuggestionsController {
         return "redirect:/app/suggestions";
     }
 
+    // ✅ Viktig: nå lagrer vi providerKey og cancelUrl dersom entity støtter det
     private void addSubscriptionFromSuggestion(String email, SubscriptionSuggestion s) {
         LocalDate next = s.getNextExpectedDate();
         if (next != null && next.isBefore(LocalDate.now().minusDays(7))) {
-            // fallback: legg neste ca. 1 mnd frem (bedre enn gammel dato)
             next = LocalDate.now().plusMonths(1);
         }
 
@@ -188,6 +183,20 @@ public class SuggestionsController {
                 next,
                 null
         );
+
+        // disse setterene må finnes på Subscription-entity:
+        // setProviderKey(String) og setCancelUrl(String)
+        try {
+            if (s.getProviderKey() != null && !s.getProviderKey().isBlank()) {
+                sub.setProviderKey(s.getProviderKey());
+            }
+            if (s.getCancelUrl() != null && !s.getCancelUrl().isBlank()) {
+                sub.setCancelUrl(s.getCancelUrl());
+            }
+        } catch (Exception ignored) {
+            // hvis entity ikke har feltene enda, krasjer vi ikke
+        }
+
         subscriptionRepository.save(sub);
     }
 
