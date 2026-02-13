@@ -176,20 +176,40 @@ public class SubscriptionDetectorService {
     private IntervalGuess guessInterval(List<LocalDate> dates) {
         if (dates.size() < 2) return new IntervalGuess(null);
 
+        // bygg diff-liste
         List<Integer> diffs = new ArrayList<>();
         for (int i = 1; i < dates.size(); i++) {
-            int d = (int) Duration.between(dates.get(i - 1).atStartOfDay(), dates.get(i).atStartOfDay()).toDays();
+            int d = (int) Duration.between(
+                    dates.get(i - 1).atStartOfDay(),
+                    dates.get(i).atStartOfDay()
+            ).toDays();
             if (d > 0) diffs.add(d);
         }
         if (diffs.isEmpty()) return new IntervalGuess(null);
 
         diffs.sort(Integer::compareTo);
+
+        // ✅ NYTT: hvis vi bare har 2 forekomster, bruk "best effort"
+        if (diffs.size() == 1) {
+            int d = diffs.get(0);
+
+            if (d >= 5 && d <= 12) return new IntervalGuess("WEEKLY");
+            // mer tolerant monthly (Viaplay/streaming kan variere litt pga betalingsdato)
+            if (d >= 15 && d <= 75) return new IntervalGuess("MONTHLY");
+            if (d >= 70 && d <= 120) return new IntervalGuess("QUARTERLY");
+            if (d >= 300 && d <= 430) return new IntervalGuess("YEARLY");
+
+            return new IntervalGuess(null);
+        }
+
+        // 3+ forekomster: median
         int median = diffs.get(diffs.size() / 2);
 
         if (median >= 6 && median <= 10) return new IntervalGuess("WEEKLY");
-        if (median >= 20 && median <= 45) return new IntervalGuess("MONTHLY");
-        if (median >= 70 && median <= 110) return new IntervalGuess("QUARTERLY");
-        if (median >= 330 && median <= 400) return new IntervalGuess("YEARLY");
+        // ✅ litt bredere her også
+        if (median >= 18 && median <= 75) return new IntervalGuess("MONTHLY");
+        if (median >= 70 && median <= 120) return new IntervalGuess("QUARTERLY");
+        if (median >= 300 && median <= 430) return new IntervalGuess("YEARLY");
 
         return new IntervalGuess(null);
     }
