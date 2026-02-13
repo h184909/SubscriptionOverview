@@ -18,7 +18,7 @@ import java.util.*;
 public class SuggestionsController {
 
     private static final String SESSION_FLASH = "flashMsg";
-    private static final String SESSION_HIDDEN_KEYS = "hiddenSuggestionKeys"; // <-- NYTT
+    private static final String SESSION_HIDDEN_KEYS = "hiddenSuggestionKeys";
 
     private final SubscriptionDetectorService detector;
     private final SubscriptionRepository subscriptionRepository;
@@ -43,17 +43,15 @@ public class SuggestionsController {
         if (flash != null) session.removeAttribute(SESSION_FLASH);
         model.addAttribute("flashMsg", flash);
 
-        // Hent forslag fra detektor
         List<SubscriptionSuggestion> suggestions = new ArrayList<>(detector.detect(email));
 
-        // ✅ NYTT: skjul "avviste" midlertidig (session-basert)
+        // skjul "avviste" midlertidig (session)
         Set<String> hidden = getHiddenKeys(session);
-        if (!hidden.isEmpty()) {
-            suggestions.removeIf(s -> hidden.contains(s.getKey()));
-        }
+        if (!hidden.isEmpty()) suggestions.removeIf(s -> hidden.contains(s.getKey()));
 
         model.addAttribute("suggestions", suggestions);
-        model.addAttribute("hiddenCount", hidden.size()); // kan brukes i JSP om du vil
+        model.addAttribute("hiddenCount", hidden.size());
+
         return "suggestions";
     }
 
@@ -68,11 +66,116 @@ public class SuggestionsController {
             return "redirect:/app/suggestions";
         }
 
-        SubscriptionSuggestion s = found.get();
+        addSubscriptionFromSuggestion(email, found.get());
 
-        // best effort: hvis next er gammel, flytt frem
+        // Accepted = permanent blokk
+        decisionRepository.findByUserEmailAndSuggestionKey(email, key)
+                .orElseGet(() -> decisionRepository.save(new SuggestionDecision(email, key, "ACCEPTED")));
+
+        // fjern fra session-hidden hvis den ligger der
+        getHiddenKeys(session).remove(key);
+
+        session.setAttribute(SESSION_FLASH, "Abonnement lagt til: " + found.get().getName());
+        return "redirect:/app/subscriptions";
+    }
+
+    @PostMapping("/app/suggestions/reject")
+    public String reject(HttpSession session, @RequestParam("key") String key) {
+        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
+        if (email == null) return "redirect:/login";
+
+        // Ikke permanent: slett evt tidligere decision
+        decisionRepository.findByUserEmailAndSuggestionKey(email, key)
+                .ifPresent(decisionRepository::delete);
+
+        // skjul midlertidig i session
+        getHiddenKeys(session).add(key);
+
+        session.setAttribute(SESSION_FLASH, "Forslag avvist (midlertidig skjult).");
+        return "redirect:/app/suggestions";
+    }
+
+    // ✅ BULK ACCEPT
+    @PostMapping("/app/suggestions/accept-bulk")
+    public String acceptBulk(HttpSession session, @RequestParam(value = "keys", required = false) List<String> keys) {
+        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
+        if (email == null) return "redirect:/login";
+
+        if (keys == null || keys.isEmpty()) {
+            session.setAttribute(SESSION_FLASH, "Velg minst ett forslag først.");
+            return "redirect:/app/suggestions";
+        }
+
+        int added = 0;
+        int missing = 0;
+
+        for (String key : keys) {
+            Optional<SubscriptionSuggestion> found = detector.findOne(email, key);
+            if (found.isEmpty()) {
+                missing++;
+                continue;
+            }
+
+            addSubscriptionFromSuggestion(email, found.get());
+            added++;
+
+            decisionRepository.findByUserEmailAndSuggestionKey(email, key)
+                    .orElseGet(() -> decisionRepository.save(new SuggestionDecision(email, key, "ACCEPTED")));
+
+            getHiddenKeys(session).remove(key);
+        }
+
+        if (missing > 0) {
+            session.setAttribute(SESSION_FLASH, "Godkjent " + added + " forslag. (" + missing + " ble ikke funnet)");
+        } else {
+            session.setAttribute(SESSION_FLASH, "Godkjent " + added + " forslag.");
+        }
+
+        return "redirect:/app/subscriptions";
+    }
+
+    // ✅ BULK REJECT
+    @PostMapping("/app/suggestions/reject-bulk")
+    public String rejectBulk(HttpSession session, @RequestParam(value = "keys", required = false) List<String> keys) {
+        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
+        if (email == null) return "redirect:/login";
+
+        if (keys == null || keys.isEmpty()) {
+            session.setAttribute(SESSION_FLASH, "Velg minst ett forslag først.");
+            return "redirect:/app/suggestions";
+        }
+
+        int rejected = 0;
+
+        for (String key : keys) {
+            // slett evt tidligere decision
+            decisionRepository.findByUserEmailAndSuggestionKey(email, key)
+                    .ifPresent(decisionRepository::delete);
+
+            // skjul i session
+            getHiddenKeys(session).add(key);
+            rejected++;
+        }
+
+        session.setAttribute(SESSION_FLASH, "Avvist " + rejected + " forslag (midlertidig skjult).");
+        return "redirect:/app/suggestions";
+    }
+
+    // reset skjulte (session)
+    @PostMapping("/app/suggestions/reset-hidden")
+    public String resetHidden(HttpSession session) {
+        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
+        if (email == null) return "redirect:/login";
+
+        getHiddenKeys(session).clear();
+        session.setAttribute(SESSION_FLASH, "Midlertidig skjulte forslag er tilbakestilt.");
+        return "redirect:/app/suggestions";
+    }
+
+    private void addSubscriptionFromSuggestion(String email, SubscriptionSuggestion s) {
         LocalDate next = s.getNextExpectedDate();
         if (next != null && next.isBefore(LocalDate.now().minusDays(7))) {
+            // fallback: legg neste ca. 1 mnd frem (bedre enn gammel dato)
             next = LocalDate.now().plusMonths(1);
         }
 
@@ -86,45 +189,6 @@ public class SuggestionsController {
                 null
         );
         subscriptionRepository.save(sub);
-
-        // ✅ Accepted skal være permanent (skjules i fremtiden)
-        decisionRepository.findByUserEmailAndSuggestionKey(email, key)
-                .orElseGet(() -> decisionRepository.save(new SuggestionDecision(email, key, "ACCEPTED")));
-
-        // Fjern også fra session-hidden i tilfelle den ligger der
-        getHiddenKeys(session).remove(key);
-
-        session.setAttribute(SESSION_FLASH, "Abonnement lagt til: " + s.getName());
-        return "redirect:/app/subscriptions";
-    }
-
-    @PostMapping("/app/suggestions/reject")
-    public String reject(HttpSession session, @RequestParam("key") String key) {
-        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
-        if (email == null) return "redirect:/login";
-
-        // ✅ NYTT: IKKE lagre REJECTED i DB (da kan du teste CSV igjen)
-        // Hvis den finnes fra før (fra tidligere versjon), slett den:
-        decisionRepository.findByUserEmailAndSuggestionKey(email, key)
-                .ifPresent(decisionRepository::delete);
-
-        // Skjul midlertidig i session så UI fortsatt føles riktig
-        getHiddenKeys(session).add(key);
-
-        session.setAttribute(SESSION_FLASH, "Forslag avvist (midlertidig skjult).");
-        return "redirect:/app/suggestions";
-    }
-
-    // ✅ Valgfritt, men supernyttig for testing:
-    // En knapp du kan legge i JSP for å få tilbake alt du har avvist i session.
-    @PostMapping("/app/suggestions/reset-hidden")
-    public String resetHidden(HttpSession session) {
-        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
-        if (email == null) return "redirect:/login";
-
-        getHiddenKeys(session).clear();
-        session.setAttribute(SESSION_FLASH, "Midlertidig skjulte forslag er tilbakestilt.");
-        return "redirect:/app/suggestions";
     }
 
     @SuppressWarnings("unchecked")

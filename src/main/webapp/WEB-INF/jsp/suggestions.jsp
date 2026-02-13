@@ -89,15 +89,17 @@
 
   <c:if test="${not empty suggestions}">
 
-    <!-- KJENTE TJENESTER -->
-    <div class="card">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-        <div>
-          <h3 style="margin:0;">Kjente tjenester</h3>
-          <div class="muted">Tjenester vi gjenkjenner.</div>
-        </div>
+    <!-- ✅ BULK ACTION BAR (én form som dekker begge tabeller) -->
+    <div class="card" style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <label class="muted" style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="selectAllBox" />
+          Velg alle
+        </label>
+        <span class="muted" id="selectedCount">0 valgt</span>
+      </div>
 
-        <!-- ✅ NYTT: knapp for å vise avviste forslag igjen (kun hvis noe er skjult) -->
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
         <c:if test="${hiddenCount != null && hiddenCount > 0}">
           <form method="post" action="${pageContext.request.contextPath}/app/suggestions/reset-hidden" style="margin:0;">
             <button type="submit" class="btn btn-secondary">
@@ -106,131 +108,153 @@
           </form>
         </c:if>
       </div>
-
-      <c:set var="hasKnown" value="false" />
-      <c:forEach var="s" items="${suggestions}">
-        <c:if test="${s.knownProvider}">
-          <c:set var="hasKnown" value="true" />
-        </c:if>
-      </c:forEach>
-
-      <c:if test="${not hasKnown}">
-        <hr class="sep"/>
-        <div class="muted">Ingen kjente tjenester funnet akkurat nå.</div>
-      </c:if>
-
-      <c:if test="${hasKnown}">
-        <hr class="sep"/>
-        <div class="tablewrap">
-          <table>
-            <thead>
-            <tr>
-              <th>Navn</th>
-              <th>Beløp</th>
-              <th>Intervall</th>
-              <th>Sist</th>
-              <th>Neste</th>
-              <th>Obs.</th>
-              <th>Confidence</th>
-              <th>Handling</th>
-            </tr>
-            </thead>
-            <tbody>
-            <c:forEach var="s" items="${suggestions}">
-              <c:if test="${s.knownProvider}">
-                <tr>
-                  <td>
-                    <b><c:out value="${s.name}" /></b>
-                    <span class="badge-popular">popular</span>
-                  </td>
-                  <td><c:out value="${s.amount}" /> <c:out value="${s.currency}" /></td>
-                  <td><c:out value="${s.interval}" /></td>
-                  <td><c:out value="${s.lastChargeDate}" /></td>
-                  <td><c:out value="${s.nextExpectedDate}" /></td>
-                  <td><c:out value="${s.occurrences}" /></td>
-                  <td><c:out value="${s.confidence}" /></td>
-                  <td>
-                    <form method="post" action="<c:url value='/app/suggestions/accept'/>" style="display:inline;">
-                      <input type="hidden" name="key" value="${s.key}" />
-                      <button type="submit" class="btn suggestion-action">Godta</button>
-                    </form>
-                    <form method="post" action="<c:url value='/app/suggestions/reject'/>" style="display:inline; margin-left:6px;">
-                      <input type="hidden" name="key" value="${s.key}" />
-                      <button type="submit" class="btn suggestion-action">Avvis</button>
-                    </form>
-                  </td>
-                </tr>
-              </c:if>
-            </c:forEach>
-            </tbody>
-          </table>
-        </div>
-      </c:if>
     </div>
 
-    <!-- ANDRE -->
-    <div class="card">
-      <h3>Andre forslag</h3>
-      <div class="muted">Mulige abonnement som vi ikke har en “kjent leverandør” for.</div>
+    <!-- Form for bulk actions -->
+    <form id="bulkForm" method="post" action="<c:url value='/app/suggestions/accept-bulk'/>" style="margin:0;">
+      <div class="card" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <button type="submit" id="bulkAcceptBtn" class="btn btn-primary">Godta valgte</button>
+        <button type="button" id="bulkRejectBtn" class="btn btn-secondary">Avvis valgte</button>
+        <span class="muted">Du kan fortsatt bruke Godta/Avvis på enkelt-rader.</span>
+      </div>
 
-      <c:set var="hasUnknown" value="false" />
-      <c:forEach var="s" items="${suggestions}">
-        <c:if test="${not s.knownProvider}">
-          <c:set var="hasUnknown" value="true" />
+      <!-- KJENTE TJENESTER -->
+      <div class="card">
+        <h3>Kjente tjenester</h3>
+        <div class="muted">Tjenester vi gjenkjenner.</div>
+
+        <c:set var="hasKnown" value="false" />
+        <c:forEach var="s" items="${suggestions}">
+          <c:if test="${s.knownProvider}">
+            <c:set var="hasKnown" value="true" />
+          </c:if>
+        </c:forEach>
+
+        <c:if test="${not hasKnown}">
+          <hr class="sep"/>
+          <div class="muted">Ingen kjente tjenester funnet akkurat nå.</div>
         </c:if>
-      </c:forEach>
 
-      <c:if test="${not hasUnknown}">
-        <hr class="sep"/>
-        <div class="muted">Ingen andre forslag.</div>
-      </c:if>
+        <c:if test="${hasKnown}">
+          <hr class="sep"/>
+          <div class="tablewrap">
+            <table>
+              <thead>
+              <tr>
+                <th style="width:40px;"></th>
+                <th>Navn</th>
+                <th>Beløp</th>
+                <th>Intervall</th>
+                <th>Sist</th>
+                <th>Neste</th>
+                <th>Obs.</th>
+                <th>Confidence</th>
+                <th>Handling</th>
+              </tr>
+              </thead>
+              <tbody>
+              <c:forEach var="s" items="${suggestions}">
+                <c:if test="${s.knownProvider}">
+                  <tr>
+                    <td>
+                      <input type="checkbox" class="rowCheck" name="keys" value="${s.key}" />
+                    </td>
+                    <td>
+                      <b><c:out value="${s.name}" /></b>
+                      <span class="badge-popular">popular</span>
+                    </td>
+                    <td><c:out value="${s.amount}" /> <c:out value="${s.currency}" /></td>
+                    <td><c:out value="${s.interval}" /></td>
+                    <td><c:out value="${s.lastChargeDate}" /></td>
+                    <td><c:out value="${s.nextExpectedDate}" /></td>
+                    <td><c:out value="${s.occurrences}" /></td>
+                    <td><c:out value="${s.confidence}" /></td>
+                    <td>
+                      <form method="post" action="<c:url value='/app/suggestions/accept'/>" style="display:inline;">
+                        <input type="hidden" name="key" value="${s.key}" />
+                        <button type="submit" class="btn suggestion-action">Godta</button>
+                      </form>
+                      <form method="post" action="<c:url value='/app/suggestions/reject'/>" style="display:inline; margin-left:6px;">
+                        <input type="hidden" name="key" value="${s.key}" />
+                        <button type="submit" class="btn suggestion-action">Avvis</button>
+                      </form>
+                    </td>
+                  </tr>
+                </c:if>
+              </c:forEach>
+              </tbody>
+            </table>
+          </div>
+        </c:if>
+      </div>
 
-      <c:if test="${hasUnknown}">
-        <hr class="sep"/>
-        <div class="tablewrap">
-          <table>
-            <thead>
-            <tr>
-              <th>Navn</th>
-              <th>Beløp</th>
-              <th>Intervall</th>
-              <th>Sist</th>
-              <th>Neste</th>
-              <th>Obs.</th>
-              <th>Confidence</th>
-              <th>Handling</th>
-            </tr>
-            </thead>
-            <tbody>
-            <c:forEach var="s" items="${suggestions}">
-              <c:if test="${not s.knownProvider}">
-                <tr>
-                  <td><c:out value="${s.name}" /></td>
-                  <td><c:out value="${s.amount}" /> <c:out value="${s.currency}" /></td>
-                  <td><c:out value="${s.interval}" /></td>
-                  <td><c:out value="${s.lastChargeDate}" /></td>
-                  <td><c:out value="${s.nextExpectedDate}" /></td>
-                  <td><c:out value="${s.occurrences}" /></td>
-                  <td><c:out value="${s.confidence}" /></td>
-                  <td>
-                    <form method="post" action="<c:url value='/app/suggestions/accept'/>" style="display:inline;">
-                      <input type="hidden" name="key" value="${s.key}" />
-                      <button type="submit" class="btn suggestion-action">Godta</button>
-                    </form>
-                    <form method="post" action="<c:url value='/app/suggestions/reject'/>" style="display:inline; margin-left:6px;">
-                      <input type="hidden" name="key" value="${s.key}" />
-                      <button type="submit" class="btn suggestion-action">Avvis</button>
-                    </form>
-                  </td>
-                </tr>
-              </c:if>
-            </c:forEach>
-            </tbody>
-          </table>
-        </div>
-      </c:if>
-    </div>
+      <!-- ANDRE -->
+      <div class="card">
+        <h3>Andre forslag</h3>
+        <div class="muted">Mulige abonnement som vi ikke har en “kjent leverandør” for.</div>
 
+        <c:set var="hasUnknown" value="false" />
+        <c:forEach var="s" items="${suggestions}">
+          <c:if test="${not s.knownProvider}">
+            <c:set var="hasUnknown" value="true" />
+          </c:if>
+        </c:forEach>
+
+        <c:if test="${not hasUnknown}">
+          <hr class="sep"/>
+          <div class="muted">Ingen andre forslag.</div>
+        </c:if>
+
+        <c:if test="${hasUnknown}">
+          <hr class="sep"/>
+          <div class="tablewrap">
+            <table>
+              <thead>
+              <tr>
+                <th style="width:40px;"></th>
+                <th>Navn</th>
+                <th>Beløp</th>
+                <th>Intervall</th>
+                <th>Sist</th>
+                <th>Neste</th>
+                <th>Obs.</th>
+                <th>Confidence</th>
+                <th>Handling</th>
+              </tr>
+              </thead>
+              <tbody>
+              <c:forEach var="s" items="${suggestions}">
+                <c:if test="${not s.knownProvider}">
+                  <tr>
+                    <td>
+                      <input type="checkbox" class="rowCheck" name="keys" value="${s.key}" />
+                    </td>
+                    <td><c:out value="${s.name}" /></td>
+                    <td><c:out value="${s.amount}" /> <c:out value="${s.currency}" /></td>
+                    <td><c:out value="${s.interval}" /></td>
+                    <td><c:out value="${s.lastChargeDate}" /></td>
+                    <td><c:out value="${s.nextExpectedDate}" /></td>
+                    <td><c:out value="${s.occurrences}" /></td>
+                    <td><c:out value="${s.confidence}" /></td>
+                    <td>
+                      <form method="post" action="<c:url value='/app/suggestions/accept'/>" style="display:inline;">
+                        <input type="hidden" name="key" value="${s.key}" />
+                        <button type="submit" class="btn suggestion-action">Godta</button>
+                      </form>
+                      <form method="post" action="<c:url value='/app/suggestions/reject'/>" style="display:inline; margin-left:6px;">
+                        <input type="hidden" name="key" value="${s.key}" />
+                        <button type="submit" class="btn suggestion-action">Avvis</button>
+                      </form>
+                    </td>
+                  </tr>
+                </c:if>
+              </c:forEach>
+              </tbody>
+            </table>
+          </div>
+        </c:if>
+      </div>
+    </form>
   </c:if>
 </div>
 
@@ -283,6 +307,49 @@
     } else {
       setActionsEnabled(true);
     }
+  })();
+</script>
+
+<script>
+  // ✅ Multi-select UX
+  (function () {
+    const selectAll = document.getElementById("selectAllBox");
+    const checks = () => Array.from(document.querySelectorAll(".rowCheck"));
+    const selectedCount = document.getElementById("selectedCount");
+    const bulkForm = document.getElementById("bulkForm");
+    const bulkRejectBtn = document.getElementById("bulkRejectBtn");
+
+    function updateCount() {
+      const n = checks().filter(c => c.checked).length;
+      if (selectedCount) selectedCount.textContent = n + " valgt";
+      if (selectAll) {
+        const all = checks();
+        const allChecked = all.length > 0 && all.every(c => c.checked);
+        selectAll.checked = allChecked;
+      }
+    }
+
+    if (selectAll) {
+      selectAll.addEventListener("change", function () {
+        checks().forEach(c => c.checked = selectAll.checked);
+        updateCount();
+      });
+    }
+
+    document.addEventListener("change", function (e) {
+      if (e.target && e.target.classList && e.target.classList.contains("rowCheck")) {
+        updateCount();
+      }
+    });
+
+    if (bulkRejectBtn && bulkForm) {
+      bulkRejectBtn.addEventListener("click", function () {
+        bulkForm.action = "<c:url value='/app/suggestions/reject-bulk'/>";
+        bulkForm.submit();
+      });
+    }
+
+    updateCount();
   })();
 </script>
 
