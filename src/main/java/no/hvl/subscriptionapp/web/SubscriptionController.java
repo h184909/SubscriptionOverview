@@ -3,6 +3,7 @@ package no.hvl.subscriptionapp.web;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import no.hvl.subscriptionapp.domain.Subscription;
+import no.hvl.subscriptionapp.domain.SuggestionDecision;
 import no.hvl.subscriptionapp.repository.SubscriptionRepository;
 import no.hvl.subscriptionapp.repository.SuggestionDecisionRepository;
 import no.hvl.subscriptionapp.service.KnownMerchants;
@@ -11,7 +12,6 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -180,7 +180,7 @@ public class SubscriptionController {
         return "redirect:/app/subscriptions";
     }
 
-    // ✅ FIX: når du sletter en subscription, fjern ACCEPTED-decision slik at den kan dukke opp igjen i suggestions
+    // ✅ Robust: ved delete -> un-block alle suggestionKeys for samme providerKey (prefix)
     @PostMapping("/app/subscriptions/delete")
     public String delete(HttpSession session, @RequestParam("id") String id) {
         Subscription sub = findOwnedSubscription(session, id);
@@ -188,20 +188,19 @@ public class SubscriptionController {
 
         String email = sub.getUserEmail();
 
-        // Bygg samme suggestionKey som ble brukt ved accept:
-        // providerKey|INTERVAL|roundedAmount0
         String providerKey = norm(firstNonBlank(sub.getProviderKey(), sub.getName()));
-        String interval = sub.getInterval() == null ? "" : sub.getInterval().trim();
+        if (!providerKey.isBlank()) {
+            String prefix = providerKey + "|";
 
-        String roundedAmount0 = "";
-        if (sub.getAmount() != null) {
-            roundedAmount0 = sub.getAmount().abs().setScale(0, RoundingMode.HALF_UP).toPlainString();
+            // Slett alle ACCEPTED-beslutninger som matcher providerKey
+            List<SuggestionDecision> decisions = decisionRepository.findByUserEmail(email);
+            for (SuggestionDecision d : decisions) {
+                String sk = d.getSuggestionKey();
+                if (sk != null && sk.startsWith(prefix)) {
+                    decisionRepository.delete(d);
+                }
+            }
         }
-
-        String suggestionKey = providerKey + "|" + interval + "|" + roundedAmount0;
-
-        decisionRepository.findByUserEmailAndSuggestionKey(email, suggestionKey)
-                .ifPresent(decisionRepository::delete);
 
         subscriptionRepository.delete(sub);
         return "redirect:/app/subscriptions";
