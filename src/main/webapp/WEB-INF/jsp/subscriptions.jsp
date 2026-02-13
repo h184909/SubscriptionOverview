@@ -66,22 +66,33 @@
 
           <c:forEach var="s" items="${subs}">
             <tr>
-              <!-- ✅ NYTT: inline rename -->
+              <!-- ✅ Pen rename: skjult input til man trykker "Endre navn" -->
               <td>
-                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                  <b><c:out value="${s.name}" /></b>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <b><c:out value="${s.name}" /></b>
+                    <button type="button"
+                            class="btn"
+                            onclick="openRename('${s.id}')">
+                      Endre navn
+                    </button>
+                  </div>
 
-                  <form method="post" action="<c:url value='/app/subscriptions/rename'/>"
-                        style="display:flex; gap:6px; margin:0; align-items:center; flex-wrap:wrap;">
-                    <input type="hidden" name="id" value="${s.id}" />
-                    <input type="text"
-                           name="name"
-                           value="<c:out value='${s.name}'/>"
-                           maxlength="80"
-                           style="max-width:220px;"
-                           aria-label="Nytt navn" />
-                    <button type="submit" class="btn">Lagre</button>
-                  </form>
+                  <div id="renameBox-${s.id}" style="display:none;">
+                    <form method="post"
+                          action="${pageContext.request.contextPath}/app/subscriptions/rename"
+                          style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:0;">
+                      <input type="hidden" name="id" value="${s.id}" />
+                      <input type="text"
+                             name="name"
+                             value="<c:out value='${s.name}'/>"
+                             maxlength="80"
+                             style="max-width:240px;"
+                             aria-label="Nytt navn" />
+                      <button type="submit" class="btn btn-primary">Lagre</button>
+                      <button type="button" class="btn" onclick="closeRename('${s.id}')">Avbryt</button>
+                    </form>
+                  </div>
                 </div>
               </td>
 
@@ -100,7 +111,6 @@
                 </c:choose>
               </td>
 
-              <!-- ✅ Flyttet hit: bare hvis aktivt abonnement -->
               <td>
                 <c:choose>
                   <c:when test="${s.active}">
@@ -153,6 +163,26 @@
   </c:if>
 
 </div>
+
+<script>
+  function openRename(id) {
+    const box = document.getElementById("renameBox-" + id);
+    if (!box) return;
+    box.style.display = "block";
+    // fokus på input
+    const input = box.querySelector("input[name='name']");
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }
+
+  function closeRename(id) {
+    const box = document.getElementById("renameBox-" + id);
+    if (!box) return;
+    box.style.display = "none";
+  }
+</script>
 
 </body>
 </html>
