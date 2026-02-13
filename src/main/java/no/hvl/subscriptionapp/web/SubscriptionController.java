@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import no.hvl.subscriptionapp.domain.Subscription;
 import no.hvl.subscriptionapp.repository.SubscriptionRepository;
+import no.hvl.subscriptionapp.repository.SuggestionDecisionRepository;
 import no.hvl.subscriptionapp.service.KnownMerchants;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -17,9 +18,14 @@ import java.util.*;
 public class SubscriptionController {
 
     private final SubscriptionRepository subscriptionRepository;
+    private final SuggestionDecisionRepository decisionRepository;
 
-    public SubscriptionController(SubscriptionRepository subscriptionRepository) {
+    public SubscriptionController(
+            SubscriptionRepository subscriptionRepository,
+            SuggestionDecisionRepository decisionRepository
+    ) {
         this.subscriptionRepository = subscriptionRepository;
+        this.decisionRepository = decisionRepository;
     }
 
     @GetMapping("/app/subscriptions")
@@ -180,7 +186,20 @@ public class SubscriptionController {
         Subscription sub = findOwnedSubscription(session, id);
         if (sub == null) return "redirect:/app/subscriptions";
 
+        String email = sub.getUserEmail();
+
+        // 👉 Fjern ACCEPTED-decision slik at det kan dukke opp igjen i suggestions
+        decisionRepository.findByUserEmail(email).stream()
+                .filter(d -> d.getSuggestionKey() != null &&
+                        d.getSuggestionKey().startsWith(
+                                (sub.getProviderKey() != null && !sub.getProviderKey().isBlank())
+                                        ? sub.getProviderKey()
+                                        : sub.getName()
+                        ))
+                .forEach(decisionRepository::delete);
+
         subscriptionRepository.delete(sub);
+
         return "redirect:/app/subscriptions";
     }
 
