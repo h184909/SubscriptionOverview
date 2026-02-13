@@ -66,7 +66,25 @@
 
           <c:forEach var="s" items="${subs}">
             <tr>
-              <td><b><c:out value="${s.name}" /></b></td>
+              <!-- ✅ NYTT: inline rename -->
+              <td>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                  <b><c:out value="${s.name}" /></b>
+
+                  <form method="post" action="<c:url value='/app/subscriptions/rename'/>"
+                        style="display:flex; gap:6px; margin:0; align-items:center; flex-wrap:wrap;">
+                    <input type="hidden" name="id" value="${s.id}" />
+                    <input type="text"
+                           name="name"
+                           value="<c:out value='${s.name}'/>"
+                           maxlength="80"
+                           style="max-width:220px;"
+                           aria-label="Nytt navn" />
+                    <button type="submit" class="btn">Lagre</button>
+                  </form>
+                </div>
+              </td>
+
               <td><c:out value="${s.amount}" /> <c:out value="${s.currency}" /></td>
               <td><c:out value="${s.interval}" /></td>
               <td>
