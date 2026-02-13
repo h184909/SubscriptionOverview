@@ -11,6 +11,7 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -59,7 +60,6 @@ public class SubscriptionController {
         // ✅ cancel-links på subscriptions
         Map<String, String> cancelLinks = new HashMap<>();
         for (Subscription s : subs) {
-            // prøv providerKey først (hvis den finnes), ellers name
             String key = (s.getProviderKey() != null && !s.getProviderKey().isBlank())
                     ? s.getProviderKey()
                     : s.getName();
@@ -131,7 +131,6 @@ public class SubscriptionController {
         return "redirect:/app/subscriptions";
     }
 
-    // ✅ NYTT: rename-endpoint
     @PostMapping("/app/subscriptions/rename")
     public String rename(HttpSession session,
                          @RequestParam("id") String id,
@@ -181,6 +180,7 @@ public class SubscriptionController {
         return "redirect:/app/subscriptions";
     }
 
+    // ✅ FIX: når du sletter en subscription, fjern ACCEPTED-decision slik at den kan dukke opp igjen i suggestions
     @PostMapping("/app/subscriptions/delete")
     public String delete(HttpSession session, @RequestParam("id") String id) {
         Subscription sub = findOwnedSubscription(session, id);
@@ -188,18 +188,22 @@ public class SubscriptionController {
 
         String email = sub.getUserEmail();
 
-        // 👉 Fjern ACCEPTED-decision slik at det kan dukke opp igjen i suggestions
-        decisionRepository.findByUserEmail(email).stream()
-                .filter(d -> d.getSuggestionKey() != null &&
-                        d.getSuggestionKey().startsWith(
-                                (sub.getProviderKey() != null && !sub.getProviderKey().isBlank())
-                                        ? sub.getProviderKey()
-                                        : sub.getName()
-                        ))
-                .forEach(decisionRepository::delete);
+        // Bygg samme suggestionKey som ble brukt ved accept:
+        // providerKey|INTERVAL|roundedAmount0
+        String providerKey = norm(firstNonBlank(sub.getProviderKey(), sub.getName()));
+        String interval = sub.getInterval() == null ? "" : sub.getInterval().trim();
+
+        String roundedAmount0 = "";
+        if (sub.getAmount() != null) {
+            roundedAmount0 = sub.getAmount().abs().setScale(0, RoundingMode.HALF_UP).toPlainString();
+        }
+
+        String suggestionKey = providerKey + "|" + interval + "|" + roundedAmount0;
+
+        decisionRepository.findByUserEmailAndSuggestionKey(email, suggestionKey)
+                .ifPresent(decisionRepository::delete);
 
         subscriptionRepository.delete(sub);
-
         return "redirect:/app/subscriptions";
     }
 
@@ -220,5 +224,15 @@ public class SubscriptionController {
         if (!email.equals(sub.getUserEmail())) return null;
 
         return sub;
+    }
+
+    private static String firstNonBlank(String... xs) {
+        for (String x : xs) if (x != null && !x.isBlank()) return x;
+        return "";
+    }
+
+    private static String norm(String s) {
+        if (s == null) return "";
+        return s.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
     }
 }
