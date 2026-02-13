@@ -24,6 +24,9 @@ public class SubscriptionDetectorService {
     private final SubscriptionRepository subRepo;
     private final SuggestionDecisionRepository decisionRepo;
 
+    // hvor gammel "siste trekk" kan være før vi ikke viser forslaget
+    private static final int MAX_LAST_AGE_DAYS = 365;
+
     public SubscriptionDetectorService(
             BankTransactionRepository txRepo,
             SubscriptionRepository subRepo,
@@ -76,6 +79,7 @@ public class SubscriptionDetectorService {
                 outgoing.stream().collect(Collectors.groupingBy(this::groupKey));
 
         List<SubscriptionSuggestion> result = new ArrayList<>();
+        LocalDate today = LocalDate.now();
 
         for (var entry : groups.entrySet()) {
             String gKey = entry.getKey();
@@ -83,7 +87,7 @@ public class SubscriptionDetectorService {
 
             boolean known = gKey.startsWith("prov:");
 
-            // ✅ Endring: 2 forekomster er nok
+            // ✅ 2 forekomster er nok
             if (g.size() < 2) continue;
 
             g = g.stream().sorted(Comparator.comparing(BankTransaction::getTxDate)).toList();
@@ -98,7 +102,13 @@ public class SubscriptionDetectorService {
             if (ig.interval == null) continue;
 
             LocalDate last = dates.get(dates.size() - 1);
+
+            // ✅ Ikke vis veldig gamle forslag (hindrer "støvete" data)
+            if (last.isBefore(today.minusDays(MAX_LAST_AGE_DAYS))) continue;
+
+            // beregn "neste" + rull frem til etter i dag
             LocalDate next = addInterval(last, ig.interval);
+            next = rollForward(next, ig.interval, today);
 
             String providerKey;
             String displayName;
@@ -143,9 +153,17 @@ public class SubscriptionDetectorService {
     private String groupKey(BankTransaction t) {
         String raw = (safe(t.getDescription()) + " " + safe(t.getReference())).toLowerCase(Locale.ROOT);
 
-        // prøv kjente leverandører først (samler Netflix/Spotify osv)
+        // 1) prøv kjente leverandører først
         Optional<KnownMerchants.Match> match = KnownMerchants.match(raw, raw);
         if (match.isPresent()) return "prov:" + match.get().providerKey();
+
+        // 2) fallback for viktige ting hvis KnownMerchants ikke matcher godt nok
+        // (Dette gjør at "Viaplay Stockholm" blir kjent selv om regex ikke treffer)
+        if (raw.contains("viaplay")) return "prov:viaplay";
+        if (raw.contains("spotify")) return "prov:spotify";
+        if (raw.contains("netflix")) return "prov:netflix";
+        if (raw.contains("disney")) return "prov:disney_plus";
+        if (raw.contains("tv2") || raw.contains("tv 2")) return "prov:tv2_play";
 
         // normaliser "ukjent" uten å kappe til 4 ord
         raw = raw.replaceAll("\\b(kortkjøp|trans\\s*type|sms\\s*varsling|vipps|straksoverføring|avtalegiro|faktura)\\b", " ");
@@ -176,7 +194,6 @@ public class SubscriptionDetectorService {
     private IntervalGuess guessInterval(List<LocalDate> dates) {
         if (dates.size() < 2) return new IntervalGuess(null);
 
-        // bygg diff-liste
         List<Integer> diffs = new ArrayList<>();
         for (int i = 1; i < dates.size(); i++) {
             int d = (int) Duration.between(
@@ -189,24 +206,19 @@ public class SubscriptionDetectorService {
 
         diffs.sort(Integer::compareTo);
 
-        // ✅ NYTT: hvis vi bare har 2 forekomster, bruk "best effort"
+        // 2 forekomster: "best effort"
         if (diffs.size() == 1) {
             int d = diffs.get(0);
-
             if (d >= 5 && d <= 12) return new IntervalGuess("WEEKLY");
-            // mer tolerant monthly (Viaplay/streaming kan variere litt pga betalingsdato)
             if (d >= 15 && d <= 75) return new IntervalGuess("MONTHLY");
             if (d >= 70 && d <= 120) return new IntervalGuess("QUARTERLY");
             if (d >= 300 && d <= 430) return new IntervalGuess("YEARLY");
-
             return new IntervalGuess(null);
         }
 
         // 3+ forekomster: median
         int median = diffs.get(diffs.size() / 2);
-
         if (median >= 6 && median <= 10) return new IntervalGuess("WEEKLY");
-        // ✅ litt bredere her også
         if (median >= 18 && median <= 75) return new IntervalGuess("MONTHLY");
         if (median >= 70 && median <= 120) return new IntervalGuess("QUARTERLY");
         if (median >= 300 && median <= 430) return new IntervalGuess("YEARLY");
@@ -222,6 +234,24 @@ public class SubscriptionDetectorService {
             case "YEARLY" -> d.plusYears(1);
             default -> d.plusMonths(1);
         };
+    }
+
+    // ✅ ruller frem "neste" til den er etter i dag
+    private LocalDate rollForward(LocalDate next, String interval, LocalDate today) {
+        if (next == null) return null;
+        LocalDate d = next;
+
+        int guard = 0;
+        while (!d.isAfter(today) && guard++ < 500) {
+            d = switch (interval) {
+                case "WEEKLY" -> d.plusWeeks(1);
+                case "MONTHLY" -> d.plusMonths(1);
+                case "QUARTERLY" -> d.plusMonths(3);
+                case "YEARLY" -> d.plusYears(1);
+                default -> d.plusMonths(1);
+            };
+        }
+        return d;
     }
 
     private int scoreConfidence(int occurrences, IntervalGuess ig, BigDecimal median, BigDecimal mad, boolean known) {
