@@ -1,12 +1,16 @@
 <%@ page contentType="text/html; charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
+
 <html>
 <head>
-  <title>Dashboard</title>
+  <title><fmt:message key="dash.title"/></title>
   <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
+
+<fmt:setBundle basename="messages" />
 
 <div class="container">
   <div class="topbar">
@@ -14,22 +18,30 @@
       <div class="logo"></div>
       <div>
         <h1>SubscriptionOverview</h1>
-        <div class="sub">Dashboard</div>
+        <div class="sub"><fmt:message key="dash.title"/></div>
       </div>
     </div>
 
+    <!-- Nav + språk -->
     <div class="nav">
-      <a href="<c:url value='/app'/>">Dashboard</a>
-      <a href="<c:url value='/app/subscriptions'/>">Abonnement</a>
-      <a href="<c:url value='/app/suggestions'/>">Forslag</a>
-      <a href="<c:url value='/app/transactions/import-csv'/>">Importer CSV</a>
+      <a href="<c:url value='/app'/>"><fmt:message key="nav.dashboard"/></a>
+      <a href="<c:url value='/app/subscriptions'/>"><fmt:message key="nav.subscriptions"/></a>
+      <a href="<c:url value='/app/suggestions'/>"><fmt:message key="nav.suggestions"/></a>
+      <a href="<c:url value='/app/transactions/import-csv'/>"><fmt:message key="nav.importCsv"/></a>
+
+      <span class="muted" style="margin:0 6px;">|</span>
+
+      <!-- behold samme side, men sett lang (lagres i session pga LocaleChangeInterceptor) -->
+      <c:url var="self" value="${pageContext.request.requestURI}" />
+      <a href="${self}?lang=en"><fmt:message key="lang.en"/></a>
+      <a href="${self}?lang=nb"><fmt:message key="lang.no"/></a>
     </div>
   </div>
 
   <div class="grid two">
     <div class="card">
-      <h3>Din status</h3>
-      <div class="muted">Innlogget som: <b>${email}</b></div>
+      <h3><fmt:message key="dash.status"/></h3>
+      <div class="muted"><fmt:message key="dash.loggedInAs"/> <b><c:out value="${email}"/></b></div>
 
       <hr class="sep"/>
 
@@ -59,15 +71,15 @@
 
       <hr class="sep"/>
       <form method="post" action="<c:url value='/logout'/>">
-        <button class="btn btn-danger" type="submit">Logg ut</button>
+        <button class="btn btn-danger" type="submit"><fmt:message key="dash.logout"/></button>
       </form>
     </div>
 
     <div class="card">
-      <h3>Trekkes snart (innen 7 dager)</h3>
+      <h3><fmt:message key="dash.dueSoon"/></h3>
 
       <c:if test="${empty dueSoon}">
-        <div class="muted">Ingen trekk de neste 7 dagene.</div>
+        <div class="muted"><fmt:message key="dash.noDueSoon"/></div>
       </c:if>
 
       <c:if test="${not empty dueSoon}">
@@ -83,9 +95,9 @@
             <tbody>
             <c:forEach var="s" items="${dueSoon}">
               <tr>
-                <td><b>${s.name}</b></td>
-                <td>${s.nextChargeDate}</td>
-                <td>${s.amount} ${s.currency}</td>
+                <td><b><c:out value="${s.name}"/></b></td>
+                <td><c:out value="${s.nextChargeDate}"/></td>
+                <td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td>
               </tr>
             </c:forEach>
             </tbody>
@@ -96,10 +108,10 @@
   </div>
 
   <div class="card">
-    <h3>Aktive abonnement</h3>
+    <h3><fmt:message key="dash.activeSubs"/></h3>
 
     <c:if test="${empty subs}">
-      <div class="muted">Ingen aktive abonnement 🎉</div>
+      <div class="muted"><fmt:message key="dash.noActiveSubs"/></div>
     </c:if>
 
     <c:if test="${not empty subs}">
@@ -117,14 +129,16 @@
           <tbody>
           <c:forEach var="s" items="${subs}">
             <tr>
-              <td>${s.name}</td>
-              <td>${s.amount} ${s.currency}</td>
-              <td>${s.interval}</td>
+              <td><c:out value="${s.name}"/></td>
+              <td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td>
+              <td><c:out value="${s.interval}"/></td>
               <td>
-                <c:if test="${empty s.nextChargeDate}">-</c:if>
-                <c:if test="${not empty s.nextChargeDate}">${s.nextChargeDate}</c:if>
+                <c:choose>
+                  <c:when test="${empty s.nextChargeDate}">-</c:when>
+                  <c:otherwise><c:out value="${s.nextChargeDate}"/></c:otherwise>
+                </c:choose>
               </td>
-              <td><b>${s.monthlyCost}</b> ${s.currency}</td>
+              <td><b><c:out value="${s.monthlyCost}"/></b> <c:out value="${s.currency}"/></td>
             </tr>
           </c:forEach>
           </tbody>
@@ -132,7 +146,9 @@
       </div>
 
       <div style="margin-top:12px;">
-        <span class="pill ok">Total ca. per måned: <b>${totalMonthlyNok} NOK</b></span>
+        <span class="pill ok">
+          <fmt:message key="dash.totalMonthly"/> <b><c:out value="${totalMonthlyNok}"/> NOK</b>
+        </span>
       </div>
     </c:if>
   </div>
