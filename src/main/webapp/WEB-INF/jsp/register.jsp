@@ -8,6 +8,10 @@
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="register.title"/></title>
   <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
+  <link rel="icon" href="<c:url value='/assets/favicon.ico'/>" />
+  <link rel="icon" type="image/png" sizes="32x32" href="<c:url value='/assets/favicon-32.png'/>" />
+  <link rel="icon" type="image/png" sizes="16x16" href="<c:url value='/assets/favicon-16.png'/>" />
+  <link rel="apple-touch-icon" sizes="180x180" href="<c:url value='/assets/apple-touch-icon.png'/>" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
