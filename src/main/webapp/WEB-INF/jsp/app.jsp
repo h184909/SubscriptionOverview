@@ -1,8 +1,8 @@
 <%@ page contentType="text/html; charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
-
-<html>
+<!doctype html>
+<html lang="${pageContext.request.locale.language}">
 <head>
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="dash.title"/></title>
@@ -14,7 +14,8 @@
 <div class="container">
   <div class="topbar">
     <div class="brand">
-      <div class="logo"></div>
+      <!-- ✅ CSS-logo (ingen bildefil) -->
+      <div class="logo" aria-hidden="true"><span>SO</span></div>
       <div>
         <h1>SubscriptionOverview</h1>
         <div class="sub"><fmt:message key="dash.title"/></div>
@@ -29,13 +30,8 @@
 
       <span class="muted" style="margin:0 6px;">|</span>
 
-      <c:url var="toEn" value="/lang">
-        <c:param name="v" value="en"/>
-      </c:url>
-      <c:url var="toNb" value="/lang">
-        <c:param name="v" value="nb"/>
-      </c:url>
-
+      <c:url var="toEn" value="/lang"><c:param name="v" value="en"/></c:url>
+      <c:url var="toNb" value="/lang"><c:param name="v" value="nb"/></c:url>
       <a href="${toEn}" title="English" aria-label="English">🇬🇧</a>
       <a href="${toNb}" title="Norsk" aria-label="Norsk">🇳🇴</a>
     </div>
@@ -100,9 +96,7 @@
               <tr>
                 <td><b><c:out value="${s.name}"/></b></td>
                 <td><c:out value="${s.nextChargeDate}"/></td>
-                <td>
-                  <c:out value="${s.amount}"/> <c:out value="${s.currency}"/>
-                </td>
+                <td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td>
               </tr>
             </c:forEach>
             </tbody>
@@ -136,10 +130,6 @@
             <tr>
               <td><c:out value="${s.name}"/></td>
 
-              <!-- ✅ Valuta-visning språkavhengig:
-                   - Norsk (nb): vis alltid NOK (for de som er NOK i modellen din)
-                   - Engelsk: vis original currency-feltet (kan fortsatt være NOK, men da er det "ekte data", ikke tvang)
-              -->
               <td>
                 <c:out value="${s.amount}"/>
                 <c:choose>

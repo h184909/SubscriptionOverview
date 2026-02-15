@@ -241,12 +241,23 @@ tr:hover td{
   color:#fecdd3;
 }
 
-.logo{
-  display:block !important;
-  width:42px !important;
-  height:42px !important;
-  border-radius:12px !important;
-  background: linear-gradient(135deg, #4F46E5, #22C55E) !important;
+.logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f8cff, #38d39f);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: white;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+
+.logo span {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 .logo::after{
   content:"S" !important;

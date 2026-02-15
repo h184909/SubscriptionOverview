@@ -2,7 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <!doctype html>
-<html>
+<html lang="${pageContext.request.locale.language}">
 <head>
   <meta charset="UTF-8" />
   <fmt:setBundle basename="messages" />
@@ -15,7 +15,8 @@
 <div class="container">
   <div class="topbar">
     <div class="brand">
-      <div class="logo"></div>
+      <!-- ✅ CSS-logo (ingen bildefil) -->
+      <div class="logo" aria-hidden="true"><span>SO</span></div>
       <div>
         <h1>SubscriptionOverview</h1>
         <div class="sub"><fmt:message key="csv.subtitle"/></div>
@@ -42,7 +43,9 @@
     <hr class="sep"/>
 
     <c:if test="${not empty flashMsg}">
-      <div class="notice flash"><b><c:out value="${flashMsg}"/></b></div>
+      <div class="notice flash" role="status" aria-live="polite">
+        <b><c:out value="${flashMsg}"/></b>
+      </div>
       <div style="height:10px;"></div>
     </c:if>
 
@@ -74,14 +77,15 @@
 
       <div class="row" style="justify-content:flex-end; align-items:center; gap:10px;">
         <span id="csvSpinner" class="muted" style="display:none;">⏳ <fmt:message key="csv.importing"/></span>
-        <button id="csvBtn" class="btn btn-primary" type="submit"><fmt:message key="csv.importBtn"/></button>
+        <button id="csvBtn" class="btn btn-primary" type="submit">
+          <fmt:message key="csv.importBtn"/>
+        </button>
       </div>
     </form>
 
     <hr class="sep"/>
     <div class="muted">
-      <fmt:message key="csv.tip"/>
-      <code>;</code>
+      <fmt:message key="csv.tip"/> <code>;</code>
     </div>
   </div>
 </div>
