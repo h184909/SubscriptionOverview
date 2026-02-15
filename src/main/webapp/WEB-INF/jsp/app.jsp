@@ -4,13 +4,12 @@
 
 <html>
 <head>
+  <fmt:setBundle basename="messages" />
   <title><fmt:message key="dash.title"/></title>
   <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
-
-<fmt:setBundle basename="messages" />
 
 <div class="container">
   <div class="topbar">
@@ -22,7 +21,6 @@
       </div>
     </div>
 
-    <!-- Nav + språk -->
     <div class="nav">
       <a href="<c:url value='/app'/>"><fmt:message key="nav.dashboard"/></a>
       <a href="<c:url value='/app/subscriptions'/>"><fmt:message key="nav.subscriptions"/></a>
@@ -31,10 +29,17 @@
 
       <span class="muted" style="margin:0 6px;">|</span>
 
-      <!-- behold samme side, men sett lang (lagres i session pga LocaleChangeInterceptor) -->
-      <c:url var="self" value="${pageContext.request.requestURI}" />
-      <a href="${self}?lang=en"><fmt:message key="lang.en"/></a>
-      <a href="${self}?lang=nb"><fmt:message key="lang.no"/></a>
+      <!-- ✅ Trygge språk-lenker (ingen 404) -->
+      <c:url var="langEn" value="${pageContext.request.servletPath}">
+        <c:param name="lang" value="en" />
+      </c:url>
+      <c:url var="langNb" value="${pageContext.request.servletPath}">
+        <c:param name="lang" value="nb" />
+      </c:url>
+
+      <!-- ✅ Flagg i stedet for EN/NO -->
+      <a href="${langEn}" title="English" aria-label="English">🇬🇧</a>
+      <a href="${langNb}" title="Norsk" aria-label="Norsk">🇳🇴</a>
     </div>
   </div>
 
@@ -47,15 +52,15 @@
 
       <c:choose>
         <c:when test="${bankConnected}">
-          <div class="pill ok">✅ Bank tilkoblet</div>
+          <div class="pill ok">✅ <fmt:message key="dash.bankConnected"/></div>
           <div style="margin-top:10px;">
-            <a class="btn" href="<c:url value='/openbanking/institutions'/>">Koble til på nytt</a>
+            <a class="btn" href="<c:url value='/openbanking/institutions'/>"><fmt:message key="dash.bankReconnect"/></a>
           </div>
         </c:when>
         <c:otherwise>
-          <div class="pill warn">⚠️ Bank ikke tilkoblet</div>
+          <div class="pill warn">⚠️ <fmt:message key="dash.bankNotConnected"/></div>
           <div style="margin-top:10px;">
-            <a class="btn btn-primary" href="<c:url value='/openbanking/institutions'/>">Koble til bank</a>
+            <a class="btn btn-primary" href="<c:url value='/openbanking/institutions'/>"><fmt:message key="dash.bankConnect"/></a>
           </div>
         </c:otherwise>
       </c:choose>
@@ -87,9 +92,9 @@
           <table>
             <thead>
             <tr>
-              <th>Navn</th>
-              <th>Neste trekkdato</th>
-              <th>Pris</th>
+              <th><fmt:message key="table.name"/></th>
+              <th><fmt:message key="table.nextCharge"/></th>
+              <th><fmt:message key="table.price"/></th>
             </tr>
             </thead>
             <tbody>
@@ -97,7 +102,9 @@
               <tr>
                 <td><b><c:out value="${s.name}"/></b></td>
                 <td><c:out value="${s.nextChargeDate}"/></td>
-                <td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td>
+                <td>
+                  <c:out value="${s.amount}"/> <c:out value="${s.currency}"/>
+                </td>
               </tr>
             </c:forEach>
             </tbody>
@@ -119,26 +126,46 @@
         <table>
           <thead>
           <tr>
-            <th>Navn</th>
-            <th>Pris</th>
-            <th>Intervall</th>
-            <th>Neste trekkdato</th>
-            <th>Ca. per måned</th>
+            <th><fmt:message key="table.name"/></th>
+            <th><fmt:message key="table.price"/></th>
+            <th><fmt:message key="table.interval"/></th>
+            <th><fmt:message key="table.nextCharge"/></th>
+            <th><fmt:message key="table.monthlyApprox"/></th>
           </tr>
           </thead>
           <tbody>
           <c:forEach var="s" items="${subs}">
             <tr>
               <td><c:out value="${s.name}"/></td>
-              <td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td>
+
+              <!-- ✅ Valuta-visning språkavhengig:
+                   - Norsk (nb): vis alltid NOK (for de som er NOK i modellen din)
+                   - Engelsk: vis original currency-feltet (kan fortsatt være NOK, men da er det "ekte data", ikke tvang)
+              -->
+              <td>
+                <c:out value="${s.amount}"/>
+                <c:choose>
+                  <c:when test="${pageContext.request.locale.language == 'nb'}"> NOK</c:when>
+                  <c:otherwise> <c:out value="${s.currency}"/></c:otherwise>
+                </c:choose>
+              </td>
+
               <td><c:out value="${s.interval}"/></td>
+
               <td>
                 <c:choose>
                   <c:when test="${empty s.nextChargeDate}">-</c:when>
                   <c:otherwise><c:out value="${s.nextChargeDate}"/></c:otherwise>
                 </c:choose>
               </td>
-              <td><b><c:out value="${s.monthlyCost}"/></b> <c:out value="${s.currency}"/></td>
+
+              <td>
+                <b><c:out value="${s.monthlyCost}"/></b>
+                <c:choose>
+                  <c:when test="${pageContext.request.locale.language == 'nb'}"> NOK</c:when>
+                  <c:otherwise> <c:out value="${s.currency}"/></c:otherwise>
+                </c:choose>
+              </td>
             </tr>
           </c:forEach>
           </tbody>
@@ -147,7 +174,14 @@
 
       <div style="margin-top:12px;">
         <span class="pill ok">
-          <fmt:message key="dash.totalMonthly"/> <b><c:out value="${totalMonthlyNok}"/> NOK</b>
+          <fmt:message key="dash.totalMonthly"/>
+          <b>
+            <c:out value="${totalMonthlyNok}"/>
+            <c:choose>
+              <c:when test="${pageContext.request.locale.language == 'nb'}"> NOK</c:when>
+              <c:otherwise> <c:out value="${subs[0].currency}"/></c:otherwise>
+            </c:choose>
+          </b>
         </span>
       </div>
     </c:if>
