@@ -240,3 +240,26 @@ tr:hover td{
   background: rgba(251,113,133,.10);
   color:#fecdd3;
 }
+/* Simple logo badge (no image needed) */
+.logo{
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4F46E5, #22C55E);
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  flex: 0 0 auto;
+  position: relative;
+}
+
+/* Optional: add an "S" mark inside */
+.logo::after{
+  content: "S";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: rgba(255,255,255,.95);
+  font-size: 18px;
+  letter-spacing: .5px;
+}
