@@ -30,7 +30,7 @@
 
       <span class="muted" style="margin:0 6px;">|</span>
 
-      <a href="<%=request.getContextPath()%>/auth/register"><fmt:message key="login.registerLink"/></a>
+      <a href="<%=request.getContextPath()%>/auth/register"><fmt:message key="login.register"/></a>
     </div>
   </div>
 
@@ -47,14 +47,18 @@
     <form class="form" method="post" action="<c:url value='/login'/>">
       <div class="field">
         <label for="email"><fmt:message key="login.email"/></label>
-        <input id="email" type="text" name="email" value="${loginForm.email}" autocomplete="email" />
+        <input id="email"
+               type="text"
+               name="email"
+               value="${loginForm.email}"
+               autocomplete="email" />
       </div>
 
       <div class="field">
         <label for="password"><fmt:message key="login.password"/></label>
 
-        <!-- Passordfelt + show-knapp i samme rad -->
-        <div style="display:flex; gap:10px; align-items:center;">
+        <!-- Passord + show-knapp (samme høyde) -->
+        <div style="display:flex; gap:10px; align-items:stretch;">
           <input id="password"
                  type="password"
                  name="passord"
@@ -64,19 +68,20 @@
           <button type="button"
                   id="togglePwBtn"
                   class="btn"
-                  style="white-space:nowrap;">
+                  style="white-space:nowrap; height:100%; align-self:stretch;">
             <fmt:message key="login.show"/>
           </button>
         </div>
 
-        <div class="muted" style="margin-top:6px;">
+        <label class="muted" style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+          <input type="checkbox" id="togglePwBox" />
           <fmt:message key="login.showHint"/>
-        </div>
+        </label>
       </div>
 
       <div class="row" style="justify-content:space-between; align-items:center; gap:10px;">
         <a class="muted" href="<%=request.getContextPath()%>/auth/register">
-          <fmt:message key="login.noAccount"/>
+          <fmt:message key="login.noUser"/>
         </a>
         <button class="btn btn-primary" type="submit">
           <fmt:message key="login.submit"/>
@@ -90,21 +95,26 @@
 (function(){
   const input = document.getElementById("password");
   const btn = document.getElementById("togglePwBtn");
-  if (!input || !btn) return;
+  const box = document.getElementById("togglePwBox");
+  if (!input || !btn || !box) return;
 
-  function setLabel() {
+  function syncUI() {
     const isPw = input.type === "password";
     btn.textContent = isPw ? "<fmt:message key='login.show'/>" : "<fmt:message key='login.hide'/>";
+    box.checked = !isPw;
     btn.setAttribute("aria-pressed", String(!isPw));
   }
 
-  btn.addEventListener("click", function(){
+  function toggle() {
     input.type = (input.type === "password") ? "text" : "password";
-    setLabel();
+    syncUI();
     input.focus();
-  });
+  }
 
-  setLabel();
+  btn.addEventListener("click", toggle);
+  box.addEventListener("change", toggle);
+
+  syncUI();
 })();
 </script>
 
