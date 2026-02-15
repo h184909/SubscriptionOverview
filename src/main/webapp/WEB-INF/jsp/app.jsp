@@ -29,17 +29,15 @@
 
       <span class="muted" style="margin:0 6px;">|</span>
 
-      <!-- ✅ Trygge språk-lenker (ingen 404) -->
-      <c:url var="langEn" value="${pageContext.request.servletPath}">
-        <c:param name="lang" value="en" />
+      <c:url var="toEn" value="/lang">
+        <c:param name="v" value="en"/>
       </c:url>
-      <c:url var="langNb" value="${pageContext.request.servletPath}">
-        <c:param name="lang" value="nb" />
+      <c:url var="toNb" value="/lang">
+        <c:param name="v" value="nb"/>
       </c:url>
 
-      <!-- ✅ Flagg i stedet for EN/NO -->
-      <a href="${langEn}" title="English" aria-label="English">🇬🇧</a>
-      <a href="${langNb}" title="Norsk" aria-label="Norsk">🇳🇴</a>
+      <a href="${toEn}" title="English" aria-label="English">🇬🇧</a>
+      <a href="${toNb}" title="Norsk" aria-label="Norsk">🇳🇴</a>
     </div>
   </div>
 
