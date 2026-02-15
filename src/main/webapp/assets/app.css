@@ -244,9 +244,10 @@ tr:hover td{
 .logo{
   width: 44px;
   height: 44px;
-  border-radius: 999px;
-  background-image: url("logo.png"); /* hvis app.css ligger i /assets */
+  border-radius: 50%;
+  background-image: url("/assets/logo.png");
   background-size: cover;
   background-position: center;
+  background-repeat: no-repeat;
   flex: 0 0 auto;
 }

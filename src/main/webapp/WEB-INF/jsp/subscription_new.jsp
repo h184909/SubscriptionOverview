@@ -6,10 +6,15 @@
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="subnew.title"/></title>
   <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
-  <link rel="icon" href="<c:url value='/assets/favicon.ico'/>" />
-  <link rel="icon" type="image/png" sizes="32x32" href="<c:url value='/assets/favicon-32.png'/>" />
-  <link rel="icon" type="image/png" sizes="16x16" href="<c:url value='/assets/favicon-16.png'/>" />
-  <link rel="apple-touch-icon" sizes="180x180" href="<c:url value='/assets/apple-touch-icon.png'/>" />
+  <c:url var="favIco" value="/favicon.ico"/>
+  <c:url var="fav16" value="/favicon-16.png"/>
+  <c:url var="fav32" value="/favicon-32.png"/>
+  <c:url var="appleTouch" value="/apple-touch-icon.png"/>
+
+  <link rel="icon" href="${favIco}?v=2" sizes="any">
+  <link rel="icon" type="image/png" href="${fav32}?v=2" sizes="32x32">
+  <link rel="icon" type="image/png" href="${fav16}?v=2" sizes="16x16">
+  <link rel="apple-touch-icon" href="${appleTouch}?v=2">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
