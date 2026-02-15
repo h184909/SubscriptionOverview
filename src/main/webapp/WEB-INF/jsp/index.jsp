@@ -12,10 +12,11 @@
   <c:url var="fav32" value="/favicon-32.png"/>
   <c:url var="appleTouch" value="/apple-touch-icon.png"/>
 
-  <link rel="icon" href="${favIco}?v=2" sizes="any">
-  <link rel="icon" type="image/png" href="${fav32}?v=2" sizes="32x32">
-  <link rel="icon" type="image/png" href="${fav16}?v=2" sizes="16x16">
-  <link rel="apple-touch-icon" href="${appleTouch}?v=2">
+  <link rel="icon" href="<c:url value='/favicon.ico'/>" />
+  <link rel="icon" type="image/png" sizes="32x32" href="<c:url value='/favicon-32.png'/>" />
+  <link rel="icon" type="image/png" sizes="16x16" href="<c:url value='/favicon-16.png'/>" />
+  <link rel="apple-touch-icon" href="<c:url value='/apple-touch-icon.png'/>" />
+  <meta name="theme-color" content="#0b1220" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
@@ -23,7 +24,7 @@
 <div class="container">
   <header class="topbar">
     <div class="brand">
-      <div class="logo" aria-hidden="true"></div>
+      <img class="logo" src="<c:url value='/assets/logo.png'/>" alt="SubscriptionOverview" />
       <div>
         <h1>SubscriptionOverview</h1>
         <div class="sub"><fmt:message key="landing.subtitle"/></div>

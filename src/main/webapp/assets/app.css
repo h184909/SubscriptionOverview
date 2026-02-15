@@ -242,12 +242,11 @@ tr:hover td{
 }
 
 .logo{
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background-image: url("/assets/logo.png");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: block;
+  object-fit: cover;      /* viktig for img */
   flex: 0 0 auto;
+  box-shadow: 0 8px 20px rgba(0,0,0,.35);
 }
