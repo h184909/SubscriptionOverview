@@ -57,7 +57,7 @@
       <div class="field">
         <label for="password"><fmt:message key="login.password"/></label>
 
-        <!-- Passord + show-knapp (samme høyde) -->
+        <!-- Passord + show-knapp -->
         <div style="display:flex; gap:10px; align-items:stretch;">
           <input id="password"
                  type="password"
@@ -68,15 +68,28 @@
           <button type="button"
                   id="togglePwBtn"
                   class="btn"
-                  style="white-space:nowrap; height:100%; align-self:stretch;">
+                  style="white-space:nowrap; align-self:stretch;">
             <fmt:message key="login.show"/>
           </button>
         </div>
 
-        <label class="muted" style="display:flex; gap:8px; align-items:center; margin-top:8px;">
-          <input type="checkbox" id="togglePwBox" />
-          <fmt:message key="login.showHint"/>
-        </label>
+        <!-- ✅ Checkbox som ikke ødelegges av global input-style -->
+        <div style="margin-top:10px;">
+          <label class="muted" for="togglePwBox"
+                 style="display:flex; align-items:center; gap:10px; user-select:none;">
+            <input type="checkbox"
+                   id="togglePwBox"
+                   style="
+                     width:auto !important;
+                     height:auto !important;
+                     padding:0 !important;
+                     margin:0 !important;
+                     display:inline-block !important;
+                     transform: translateY(1px);
+                   " />
+            <span><fmt:message key="login.showHint"/></span>
+          </label>
+        </div>
       </div>
 
       <div class="row" style="justify-content:space-between; align-items:center; gap:10px;">
