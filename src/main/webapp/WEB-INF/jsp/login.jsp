@@ -1,8 +1,10 @@
 <%@ page contentType="text/html; charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
+<!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8" />
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="login.title"/></title>
   <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
@@ -21,7 +23,6 @@
     </div>
 
     <div class="nav">
-      <!-- språk -->
       <c:url var="toEn" value="/lang"><c:param name="v" value="en"/></c:url>
       <c:url var="toNb" value="/lang"><c:param name="v" value="nb"/></c:url>
       <a href="${toEn}" title="English" aria-label="English">🇬🇧</a>
@@ -29,8 +30,7 @@
 
       <span class="muted" style="margin:0 6px;">|</span>
 
-      <a class="btn" href="<%=request.getContextPath()%>/"><fmt:message key="login.home"/></a>
-      <a class="btn btn-primary" href="<%=request.getContextPath()%>/auth/register"><fmt:message key="login.register"/></a>
+      <a href="<%=request.getContextPath()%>/auth/register"><fmt:message key="login.registerLink"/></a>
     </div>
   </div>
 
@@ -44,50 +44,43 @@
       <div style="height:10px;"></div>
     </c:if>
 
-    <form id="loginForm" class="form" method="post" action="<c:url value='/login'/>">
+    <form class="form" method="post" action="<c:url value='/login'/>">
       <div class="field">
         <label for="email"><fmt:message key="login.email"/></label>
-        <input id="email"
-               type="email"
-               name="email"
-               value="<c:out value='${loginForm.email}'/>"
-               autocomplete="email"
-               inputmode="email"
-               required />
+        <input id="email" type="text" name="email" value="${loginForm.email}" autocomplete="email" />
       </div>
 
       <div class="field">
-        <label for="passord"><fmt:message key="login.password"/></label>
+        <label for="password"><fmt:message key="login.password"/></label>
 
-        <div style="display:flex; gap:8px; align-items:center;">
-          <input id="passord"
+        <!-- Passordfelt + show-knapp i samme rad -->
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input id="password"
                  type="password"
                  name="passord"
                  autocomplete="current-password"
-                 required
-                 style="flex:1;" />
-          <button type="button" class="btn" id="togglePw" style="white-space:nowrap;">
+                 style="flex:1; min-width:0;" />
+
+          <button type="button"
+                  id="togglePwBtn"
+                  class="btn"
+                  style="white-space:nowrap;">
             <fmt:message key="login.show"/>
           </button>
         </div>
 
         <div class="muted" style="margin-top:6px;">
-          <label style="display:flex; gap:8px; align-items:center; cursor:pointer;">
-            <input type="checkbox" id="showPwBox" />
-            <fmt:message key="login.showHint"/>
-          </label>
+          <fmt:message key="login.showHint"/>
         </div>
       </div>
 
       <div class="row" style="justify-content:space-between; align-items:center; gap:10px;">
         <a class="muted" href="<%=request.getContextPath()%>/auth/register">
-          <fmt:message key="login.noUser"/>
+          <fmt:message key="login.noAccount"/>
         </a>
-
-        <div style="display:flex; gap:10px; align-items:center;">
-          <span id="loginSpinner" class="muted" style="display:none;">⏳ <fmt:message key="login.signingIn"/></span>
-          <button id="loginBtn" class="btn btn-primary" type="submit"><fmt:message key="login.submit"/></button>
-        </div>
+        <button class="btn btn-primary" type="submit">
+          <fmt:message key="login.submit"/>
+        </button>
       </div>
     </form>
   </div>
@@ -95,30 +88,23 @@
 
 <script>
 (function(){
-  const pw = document.getElementById("passord");
-  const btn = document.getElementById("togglePw");
-  const box = document.getElementById("showPwBox");
+  const input = document.getElementById("password");
+  const btn = document.getElementById("togglePwBtn");
+  if (!input || !btn) return;
 
-  function setShow(show){
-    if (!pw) return;
-    pw.type = show ? "text" : "password";
-    if (btn) btn.textContent = show ? "Hide" : "Show";
+  function setLabel() {
+    const isPw = input.type === "password";
+    btn.textContent = isPw ? "<fmt:message key='login.show'/>" : "<fmt:message key='login.hide'/>";
+    btn.setAttribute("aria-pressed", String(!isPw));
   }
 
-  // bruker både knapp og checkbox
-  if (btn) btn.addEventListener("click", () => setShow(pw && pw.type === "password"));
-  if (box) box.addEventListener("change", () => setShow(box.checked));
+  btn.addEventListener("click", function(){
+    input.type = (input.type === "password") ? "text" : "password";
+    setLabel();
+    input.focus();
+  });
 
-  // disable + spinner på submit
-  const form = document.getElementById("loginForm");
-  const submitBtn = document.getElementById("loginBtn");
-  const spinner = document.getElementById("loginSpinner");
-  if (form) {
-    form.addEventListener("submit", function(){
-      if (submitBtn) submitBtn.disabled = true;
-      if (spinner) spinner.style.display = "inline";
-    });
-  }
+  setLabel();
 })();
 </script>
 
