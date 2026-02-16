@@ -135,4 +135,33 @@ public class ProfileController {
         session.invalidate();
         return "redirect:/";
     }
+
+    @PostMapping("/app/profile/language")
+    public String updateLanguage(
+            HttpSession session,
+            @RequestParam("lang") String lang
+    ) {
+        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
+        if (email == null) return "redirect:/login";
+
+        String v = (lang == null ? "" : lang.trim().toLowerCase());
+        var locale = switch (v) {
+            case "nb", "no" -> java.util.Locale.forLanguageTag("nb-NO");
+            default -> java.util.Locale.forLanguageTag("en-US");
+        };
+
+        // ✅ session locale (tar effekt med én gang)
+        session.setAttribute(
+                org.springframework.web.servlet.i18n.SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME,
+                locale
+        );
+
+        // ✅ persist per bruker
+        personRepo.findById(email).ifPresent(p -> {
+            p.setPreferredLanguage(locale.getLanguage()); // "nb" / "en"
+            personRepo.save(p);
+        });
+
+        return "redirect:/app/profile";
+    }
 }
