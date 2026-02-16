@@ -38,18 +38,17 @@ public class AppController {
 
         model.addAttribute("email", email);
 
-        // Bank-tilkobling (til UI)
         boolean bankConnected = consentRepo.findTopByUserEmailOrderByCreatedAtDesc(email).isPresent();
         model.addAttribute("bankConnected", bankConnected);
 
-        // Subs
-        List<Subscription> subs = subscriptionRepo.findByUserEmailOrderByCreatedAtDesc(email);
+        // Hent alle, men dashboard skal vise kun aktive
+        List<Subscription> allSubs = subscriptionRepo.findByUserEmailOrderByCreatedAtDesc(email);
 
-        // ✅ Rull frem nextChargeDate hvis den er i dag eller tidligere
+        // ✅ Rull frem nextChargeDate hvis den er i dag eller tidligere (kun aktive)
         LocalDate today = LocalDate.now();
         boolean changed = false;
 
-        for (Subscription s : subs) {
+        for (Subscription s : allSubs) {
             if (!s.isActive()) continue;
             if (s.getNextChargeDate() == null) continue;
 
@@ -57,20 +56,24 @@ public class AppController {
             if (!next.isAfter(today)) { // <= today
                 LocalDate rolled = rollForward(next, s.getInterval(), today);
                 if (!rolled.equals(next)) {
-                    s.setNextChargeDate(rolled); // krever setter (du har den fra før)
+                    s.setNextChargeDate(rolled);
                     changed = true;
                 }
             }
         }
 
-        if (changed) subscriptionRepo.saveAll(subs);
+        if (changed) subscriptionRepo.saveAll(allSubs);
 
-        model.addAttribute("subs", subs);
-
-        // ✅ Due soon: inkluderende [today, today+7]
-        LocalDate end = today.plusDays(7);
-        List<Subscription> dueSoon = subs.stream()
+        // ✅ Kun aktive på dashboard
+        List<Subscription> activeSubs = allSubs.stream()
                 .filter(Subscription::isActive)
+                .toList();
+
+        model.addAttribute("subs", activeSubs);
+
+        // ✅ Due soon (kun aktive): inkluderende [today, today+7]
+        LocalDate end = today.plusDays(7);
+        List<Subscription> dueSoon = activeSubs.stream()
                 .filter(s -> s.getNextChargeDate() != null)
                 .filter(s -> !s.getNextChargeDate().isBefore(today)) // >= today
                 .filter(s -> !s.getNextChargeDate().isAfter(end))    // <= end
@@ -79,19 +82,15 @@ public class AppController {
 
         model.addAttribute("dueSoon", dueSoon);
 
-        // Total per måned i NOK (konverter alle valutaer -> NOK)
+        // ✅ Total per måned i NOK (kun aktive)
         BigDecimal totalMonthlyNok = BigDecimal.ZERO;
-
-        for (Subscription s : subs) {
+        for (Subscription s : activeSubs) {
             BigDecimal monthly = s.getMonthlyCost();
             if (monthly == null) continue;
 
             BigDecimal inNok = fx.convertToNok(monthly, s.getCurrency());
-            if (inNok != null) {
-                totalMonthlyNok = totalMonthlyNok.add(inNok);
-            }
+            if (inNok != null) totalMonthlyNok = totalMonthlyNok.add(inNok);
         }
-
         model.addAttribute("totalMonthlyNok", totalMonthlyNok);
 
         model.addAttribute("showDevLinks", false);
