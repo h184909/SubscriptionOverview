@@ -40,9 +40,21 @@ public class LoginController {
         }
 
         return authService.authenticate(form.getEmail(), form.getPassord())
-                .map(Person::getEmail)
-                .map(email -> {
-                    session.setAttribute(SESSION_USER_EMAIL, email);
+                .map(p -> {
+                    session.setAttribute(SESSION_USER_EMAIL, p.getEmail());
+
+                    // ✅ hvis bruker har foretrukket språk: set session-locale
+                    String pl = p.getPreferredLanguage();
+                    if (pl != null && !pl.isBlank()) {
+                        var locale = "nb".equalsIgnoreCase(pl)
+                                ? java.util.Locale.forLanguageTag("nb-NO")
+                                : java.util.Locale.forLanguageTag("en-US");
+                        session.setAttribute(
+                                org.springframework.web.servlet.i18n.SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME,
+                                locale
+                        );
+                    }
+
                     return "redirect:/app";
                 })
                 .orElseGet(() -> {

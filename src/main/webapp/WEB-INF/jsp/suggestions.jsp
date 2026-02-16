@@ -35,6 +35,7 @@
       <a href="<c:url value='/app'/>"><fmt:message key="nav.dashboard"/></a>
       <a href="<c:url value='/app/subscriptions'/>"><fmt:message key="nav.subscriptions"/></a>
       <a href="<c:url value='/app/transactions/import-csv'/>"><fmt:message key="nav.importCsv"/></a>
+      <a href="<c:url value='/app/profile'/>">Profile</a>
 
       <span class="muted" style="margin:0 6px;">|</span>
 

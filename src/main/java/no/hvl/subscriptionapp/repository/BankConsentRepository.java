@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public interface BankConsentRepository extends JpaRepository<BankConsent, UUID> {
     Optional<BankConsent> findTopByUserEmailOrderByCreatedAtDesc(String userEmail);
+    void deleteByUserEmail(String userEmail);
 
 
 }

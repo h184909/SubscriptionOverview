@@ -15,4 +15,5 @@ public interface SuggestionDecisionRepository extends JpaRepository<SuggestionDe
     Optional<SuggestionDecision> findByUserEmailAndSuggestionKey(String userEmail, String suggestionKey);
 
     List<SuggestionDecision> findByUserEmailAndSuggestionKeyIn(String userEmail, Set<String> keys);
+    void deleteByUserEmail(String userEmail);
 }

@@ -25,6 +25,10 @@ public class Person {
     @Column(length = 32, nullable = false)
     private String salt;
 
+    // ✅ NYTT: lagrer språkvalg per bruker (f.eks "en" eller "nb")
+    @Column(length = 8)
+    private String preferredLanguage;
+
     protected Person() {
         // JPA
     }
@@ -43,4 +47,7 @@ public class Person {
 
     public String getSalt() { return salt; }
     public void setSalt(String salt) { this.salt = salt; }
+
+    public String getPreferredLanguage() { return preferredLanguage; }
+    public void setPreferredLanguage(String preferredLanguage) { this.preferredLanguage = preferredLanguage; }
 }

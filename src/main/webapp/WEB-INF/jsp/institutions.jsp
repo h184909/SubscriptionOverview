@@ -34,6 +34,7 @@
     <div class="nav">
       <a href="<c:url value='/app'/>"><fmt:message key="nav.dashboard"/></a>
       <a href="<c:url value='/app/suggestions'/>"><fmt:message key="nav.suggestions"/></a>
+      <a href="<c:url value='/app/profile'/>">Profile</a>
 
       <span class="muted" style="margin:0 6px;">|</span>
 

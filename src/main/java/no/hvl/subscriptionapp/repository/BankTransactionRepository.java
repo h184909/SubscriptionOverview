@@ -25,4 +25,5 @@ public interface BankTransactionRepository extends JpaRepository<BankTransaction
             String accountId,
             Collection<String> txIds
     );
+    void deleteByUserEmail(String userEmail);
 }

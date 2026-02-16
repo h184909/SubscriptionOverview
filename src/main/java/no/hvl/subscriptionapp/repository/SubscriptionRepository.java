@@ -29,6 +29,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, UUID
             String currency,
             String interval
     );
+    void deleteByUserEmail(String userEmail);
 
 
 
