@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import no.hvl.subscriptionapp.domain.Person;
 import no.hvl.subscriptionapp.repository.PersonRepository;
 import no.hvl.subscriptionapp.service.PasswordService;
+import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -23,15 +24,22 @@ public class LoginController {
 
     private final PersonRepository personRepository;
     private final PasswordService passwordService;
+    private final MessageSource messageSource;
 
-    public LoginController(PersonRepository personRepository, PasswordService passwordService) {
+    public LoginController(
+            PersonRepository personRepository,
+            PasswordService passwordService,
+            MessageSource messageSource
+    ) {
         this.personRepository = personRepository;
         this.passwordService = passwordService;
+        this.messageSource = messageSource;
     }
 
     @GetMapping("/login")
     public String showLogin(
             Model model,
+            Locale locale,
             @RequestParam(value = "verify", required = false) String verify,
             @RequestParam(value = "resent", required = false) String resent
     ) {
@@ -40,11 +48,17 @@ public class LoginController {
         }
 
         if (verify != null) {
-            model.addAttribute("flashMsg", "Vi har sendt deg en verifiseringsmail. Sjekk innboksen din.");
+            model.addAttribute(
+                    "flashMsg",
+                    messageSource.getMessage("login.verifySent", null, locale)
+            );
         }
 
         if (resent != null) {
-            model.addAttribute("flashMsg", "Ny verifiseringsmail er sendt.");
+            model.addAttribute(
+                    "flashMsg",
+                    messageSource.getMessage("login.verifyResent", null, locale)
+            );
         }
 
         return "login";
@@ -55,7 +69,8 @@ public class LoginController {
             @Valid @ModelAttribute("loginForm") LoginForm form,
             BindingResult bindingResult,
             HttpSession session,
-            Model model
+            Model model,
+            Locale locale
     ) {
         if (bindingResult.hasErrors()) {
             return "login";
@@ -64,12 +79,18 @@ public class LoginController {
         Person person = personRepository.findById(form.getEmail()).orElse(null);
 
         if (person == null || !passwordService.verify(form.getPassord(), person.getSalt(), person.getHash())) {
-            model.addAttribute("loginError", "Feil e-post eller passord");
+            model.addAttribute(
+                    "loginError",
+                    messageSource.getMessage("login.invalid", null, locale)
+            );
             return "login";
         }
 
         if (!person.isEmailVerified()) {
-            model.addAttribute("loginError", "Du må verifisere e-posten din før du kan logge inn.");
+            model.addAttribute(
+                    "loginError",
+                    messageSource.getMessage("login.notVerified", null, locale)
+            );
             model.addAttribute("showResend", true);
             model.addAttribute("email", person.getEmail());
             return "login";
@@ -77,14 +98,13 @@ public class LoginController {
 
         session.setAttribute(SESSION_USER_EMAIL, person.getEmail());
 
-        // språkpreferanse
         String pl = person.getPreferredLanguage();
         if (pl != null && !pl.isBlank()) {
-            Locale locale = "nb".equalsIgnoreCase(pl)
+            Locale userLocale = "nb".equalsIgnoreCase(pl)
                     ? Locale.forLanguageTag("nb-NO")
                     : Locale.forLanguageTag("en-US");
 
-            session.setAttribute(SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME, locale);
+            session.setAttribute(SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME, userLocale);
         }
 
         return "redirect:/app";
