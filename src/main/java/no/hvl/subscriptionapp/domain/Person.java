@@ -8,6 +8,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+import java.time.OffsetDateTime;
+
 @Entity
 @Table(schema = "subscription_app", name = "app_user")
 public class Person {
@@ -28,6 +30,16 @@ public class Person {
     // ✅ NYTT: lagrer språkvalg per bruker (f.eks "en" eller "nb")
     @Column(length = 8)
     private String preferredLanguage;
+
+    // ✅ verifisering
+    @Column(nullable = false)
+    private boolean emailVerified = false;
+
+    // lagrer HASH av tokenet (ikke token i klartekst)
+    @Column(length = 64)
+    private String emailVerifyTokenHash;
+
+    private OffsetDateTime emailVerifyExpiresAt;
 
     protected Person() {
         // JPA
@@ -50,4 +62,13 @@ public class Person {
 
     public String getPreferredLanguage() { return preferredLanguage; }
     public void setPreferredLanguage(String preferredLanguage) { this.preferredLanguage = preferredLanguage; }
+
+    public boolean isEmailVerified() { return emailVerified; }
+    public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
+
+    public String getEmailVerifyTokenHash() { return emailVerifyTokenHash; }
+    public void setEmailVerifyTokenHash(String emailVerifyTokenHash) { this.emailVerifyTokenHash = emailVerifyTokenHash; }
+
+    public OffsetDateTime getEmailVerifyExpiresAt() { return emailVerifyExpiresAt; }
+    public void setEmailVerifyExpiresAt(OffsetDateTime emailVerifyExpiresAt) { this.emailVerifyExpiresAt = emailVerifyExpiresAt; }
 }

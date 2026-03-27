@@ -1,9 +1,11 @@
 package no.hvl.subscriptionapp.web;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import no.hvl.subscriptionapp.domain.Person;
 import no.hvl.subscriptionapp.repository.PersonRepository;
+import no.hvl.subscriptionapp.service.EmailVerificationService;
 import no.hvl.subscriptionapp.service.PasswordService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -16,16 +18,21 @@ public class RegController {
 
     private final PersonRepository personRepository;
     private final PasswordService passwordService;
+    private final EmailVerificationService emailVerificationService;
 
-    public RegController(PersonRepository personRepository, PasswordService passwordService) {
+    public RegController(
+            PersonRepository personRepository,
+            PasswordService passwordService,
+            EmailVerificationService emailVerificationService
+    ) {
         this.personRepository = personRepository;
         this.passwordService = passwordService;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @GetMapping("/register")
     public String showRegister(Model model, HttpSession session) {
-
-        // Logg ut ev. eksisterende bruker før registrering
+        // logg ut ev. eksisterende bruker før registrering
         session.removeAttribute(LoginController.SESSION_USER_EMAIL);
 
         if (!model.containsAttribute("form")) {
@@ -39,18 +46,16 @@ public class RegController {
             @Valid @ModelAttribute("form") RegisterForm form,
             BindingResult binding,
             Model model,
-            HttpSession session
+            HttpSession session,
+            HttpServletRequest request
     ) {
-
-        // Logg ut ev. eksisterende bruker før registrering (igjen, i tilfelle POST kalles direkte)
+        // logg ut ev. eksisterende bruker før registrering
         session.removeAttribute(LoginController.SESSION_USER_EMAIL);
 
-        // Passordene må være like
         if (!form.passordErLik()) {
             binding.rejectValue("passordRep", "password.mismatch", "Passordene er ikke like");
         }
 
-        // E-post må være unik
         if (!binding.hasFieldErrors("email") && personRepository.existsById(form.getEmail())) {
             binding.rejectValue("email", "email.exists", "Denne e-posten er allerede registrert");
         }
@@ -60,10 +65,22 @@ public class RegController {
         }
 
         PasswordService.SaltHash sh = passwordService.newSaltHash(form.getPassord().toCharArray());
+
         Person person = new Person(form.getEmail(), sh.hashHex(), sh.saltHex());
+        person.setEmailVerified(false);
         personRepository.save(person);
 
-        session.setAttribute(LoginController.SESSION_USER_EMAIL, person.getEmail());
-        return "redirect:/app";
+        // bygg baseUrl for verifiseringslink
+        String baseUrl = request.getScheme() + "://" + request.getServerName()
+                + ((request.getServerPort() == 80 || request.getServerPort() == 443)
+                ? ""
+                : ":" + request.getServerPort())
+                + request.getContextPath();
+
+        // send verifiseringsmail
+        emailVerificationService.issueAndSend(person, baseUrl);
+
+        // ikke logg inn automatisk - bruker må verifisere først
+        return "redirect:/login?verify=1";
     }
 }

@@ -8,10 +8,6 @@
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="login.title"/></title>
   <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
-  <c:url var="favIco" value="/favicon.ico"/>
-  <c:url var="fav16" value="/favicon-16.png"/>
-  <c:url var="fav32" value="/favicon-32.png"/>
-  <c:url var="appleTouch" value="/apple-touch-icon.png"/>
 
   <link rel="icon" href="<c:url value='/favicon.ico'/>" />
   <link rel="icon" type="image/png" sizes="32x32" href="<c:url value='/favicon-32.png'/>" />
@@ -49,8 +45,28 @@
     <div class="muted"><fmt:message key="login.lead"/></div>
     <hr class="sep"/>
 
+    <c:if test="${not empty flashMsg}">
+      <div class="notice flash"><b><c:out value="${flashMsg}"/></b></div>
+      <div style="height:10px;"></div>
+    </c:if>
+
     <c:if test="${not empty loginError}">
       <div class="notice error"><b><c:out value="${loginError}"/></b></div>
+      <div style="height:10px;"></div>
+    </c:if>
+
+    <c:if test="${showResend}">
+      <div class="notice">
+        <b><fmt:message key="login.verifyNeededTitle"/></b>
+        <div class="muted" style="margin-top:6px;">
+          <fmt:message key="login.verifyNeededText"/>
+        </div>
+
+        <form method="post" action="<c:url value='/auth/resend-verification'/>" style="margin-top:10px;">
+          <input type="hidden" name="email" value="${email}" />
+          <button class="btn" type="submit"><fmt:message key="login.resendVerification"/></button>
+        </form>
+      </div>
       <div style="height:10px;"></div>
     </c:if>
 
@@ -67,7 +83,6 @@
       <div class="field">
         <label for="password"><fmt:message key="login.password"/></label>
 
-        <!-- Passord + show-knapp -->
         <div style="display:flex; gap:10px; align-items:stretch;">
           <input id="password"
                  type="password"
@@ -83,7 +98,6 @@
           </button>
         </div>
 
-        <!-- ✅ Checkbox som ikke ødelegges av global input-style -->
         <div style="margin-top:10px;">
           <label class="muted" for="togglePwBox"
                  style="display:flex; align-items:center; gap:10px; user-select:none;">
