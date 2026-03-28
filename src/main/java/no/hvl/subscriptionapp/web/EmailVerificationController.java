@@ -37,11 +37,7 @@ public class EmailVerificationController {
         return personRepository.findById(email)
                 .filter(p -> !p.isEmailVerified())
                 .map(p -> {
-                    String baseUrl = request.getScheme() + "://" + request.getServerName()
-                            + ((request.getServerPort() == 80 || request.getServerPort() == 443)
-                            ? ""
-                            : ":" + request.getServerPort())
-                            + request.getContextPath();
+                    String baseUrl = "https://" + request.getServerName() + request.getContextPath();
 
                     verificationService.issueAndSend(p, baseUrl);
                     return "redirect:/login?resent=1";

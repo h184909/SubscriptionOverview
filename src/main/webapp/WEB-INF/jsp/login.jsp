@@ -117,9 +117,15 @@
       </div>
 
       <div class="row" style="justify-content:space-between; align-items:center; gap:10px;">
-        <a class="muted" href="<%=request.getContextPath()%>/auth/register">
-          <fmt:message key="login.noUser"/>
-        </a>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <a class="muted" href="<%=request.getContextPath()%>/auth/register">
+            <fmt:message key="login.noUser"/>
+          </a>
+          <a class="muted" href="<%=request.getContextPath()%>/auth/forgot-password">
+            <fmt:message key="login.forgotPassword"/>
+          </a>
+        </div>
+
         <button class="btn btn-primary" type="submit">
           <fmt:message key="login.submit"/>
         </button>

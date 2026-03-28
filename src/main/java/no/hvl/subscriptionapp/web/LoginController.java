@@ -41,7 +41,8 @@ public class LoginController {
             Model model,
             Locale locale,
             @RequestParam(value = "verify", required = false) String verify,
-            @RequestParam(value = "resent", required = false) String resent
+            @RequestParam(value = "resent", required = false) String resent,
+            @RequestParam(value = "reset", required = false) String reset
     ) {
         if (!model.containsAttribute("loginForm")) {
             model.addAttribute("loginForm", new LoginForm());
@@ -58,6 +59,13 @@ public class LoginController {
             model.addAttribute(
                     "flashMsg",
                     messageSource.getMessage("login.verifyResent", null, locale)
+            );
+        }
+
+        if (reset != null) {
+            model.addAttribute(
+                    "flashMsg",
+                    messageSource.getMessage("reset.success", null, locale)
             );
         }
 

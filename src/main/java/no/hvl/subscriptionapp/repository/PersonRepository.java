@@ -7,4 +7,5 @@ import java.util.Optional;
 
 public interface PersonRepository extends JpaRepository<Person, String> {
     Optional<Person> findByEmailVerifyTokenHash(String emailVerifyTokenHash);
+    Optional<Person> findByPasswordResetTokenHash(String passwordResetTokenHash);
 }

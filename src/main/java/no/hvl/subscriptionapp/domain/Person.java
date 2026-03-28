@@ -27,22 +27,24 @@ public class Person {
     @Column(length = 32, nullable = false)
     private String salt;
 
-    // ✅ NYTT: lagrer språkvalg per bruker (f.eks "en" eller "nb")
     @Column(length = 8)
     private String preferredLanguage;
 
-    // ✅ verifisering
     @Column(nullable = false)
     private boolean emailVerified = false;
 
-    // lagrer HASH av tokenet (ikke token i klartekst)
     @Column(length = 64)
     private String emailVerifyTokenHash;
 
     private OffsetDateTime emailVerifyExpiresAt;
 
+    // ✅ forgot password
+    @Column(length = 64)
+    private String passwordResetTokenHash;
+
+    private OffsetDateTime passwordResetExpiresAt;
+
     protected Person() {
-        // JPA
     }
 
     public Person(String email, String hash, String salt) {
@@ -71,4 +73,10 @@ public class Person {
 
     public OffsetDateTime getEmailVerifyExpiresAt() { return emailVerifyExpiresAt; }
     public void setEmailVerifyExpiresAt(OffsetDateTime emailVerifyExpiresAt) { this.emailVerifyExpiresAt = emailVerifyExpiresAt; }
+
+    public String getPasswordResetTokenHash() { return passwordResetTokenHash; }
+    public void setPasswordResetTokenHash(String passwordResetTokenHash) { this.passwordResetTokenHash = passwordResetTokenHash; }
+
+    public OffsetDateTime getPasswordResetExpiresAt() { return passwordResetExpiresAt; }
+    public void setPasswordResetExpiresAt(OffsetDateTime passwordResetExpiresAt) { this.passwordResetExpiresAt = passwordResetExpiresAt; }
 }
