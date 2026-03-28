@@ -32,7 +32,6 @@ public class RegController {
 
     @GetMapping("/register")
     public String showRegister(Model model, HttpSession session) {
-        // logg ut ev. eksisterende bruker før registrering
         session.removeAttribute(LoginController.SESSION_USER_EMAIL);
 
         if (!model.containsAttribute("form")) {
@@ -49,7 +48,6 @@ public class RegController {
             HttpSession session,
             HttpServletRequest request
     ) {
-        // logg ut ev. eksisterende bruker før registrering
         session.removeAttribute(LoginController.SESSION_USER_EMAIL);
 
         if (!form.passordErLik()) {
@@ -70,17 +68,21 @@ public class RegController {
         person.setEmailVerified(false);
         personRepository.save(person);
 
-        // bygg baseUrl for verifiseringslink
-        String baseUrl = request.getScheme() + "://" + request.getServerName()
-                + ((request.getServerPort() == 80 || request.getServerPort() == 443)
-                ? ""
-                : ":" + request.getServerPort())
-                + request.getContextPath();
+        try {
+            // ✅ alltid bygg verify-link med HTTPS
+            String baseUrl = "https://" + request.getServerName() + request.getContextPath();
 
-        // send verifiseringsmail
-        emailVerificationService.issueAndSend(person, baseUrl);
+            emailVerificationService.issueAndSend(person, baseUrl);
 
-        // ikke logg inn automatisk - bruker må verifisere først
-        return "redirect:/login?verify=1";
+            return "redirect:/login?verify=1";
+        } catch (Exception e) {
+            // hvis e-postsending feiler, fjern brukeren igjen så den ikke blir stående halvferdig
+            personRepository.deleteById(person.getEmail());
+
+            model.addAttribute("feilmeldinger", java.util.List.of(
+                    "Could not send verification email right now. Please try again."
+            ));
+            return "register";
+        }
     }
 }
