@@ -1,18 +1,18 @@
 package no.hvl.subscriptionapp.service;
 
 import no.hvl.subscriptionapp.domain.BankTransaction;
-import no.hvl.subscriptionapp.domain.SuggestionDecision;
 import no.hvl.subscriptionapp.domain.Subscription;
+import no.hvl.subscriptionapp.domain.SuggestionDecision;
 import no.hvl.subscriptionapp.repository.BankTransactionRepository;
-import no.hvl.subscriptionapp.repository.SuggestionDecisionRepository;
 import no.hvl.subscriptionapp.repository.SubscriptionRepository;
+import no.hvl.subscriptionapp.repository.SuggestionDecisionRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -24,8 +24,13 @@ public class SubscriptionDetectorService {
     private final SubscriptionRepository subRepo;
     private final SuggestionDecisionRepository decisionRepo;
 
-    // hvor gammel "siste trekk" kan være før vi ikke viser forslaget
+    // hvor gammel siste betaling kan være før vi skjuler forslaget
     private static final int MAX_LAST_AGE_DAYS = 365;
+
+    // hvor mye beløp kan variere før vi mister confidence
+    private static final BigDecimal LOW_VARIATION = new BigDecimal("0.03");
+    private static final BigDecimal MEDIUM_VARIATION = new BigDecimal("0.10");
+    private static final BigDecimal HIGH_VARIATION = new BigDecimal("0.20");
 
     public SubscriptionDetectorService(
             BankTransactionRepository txRepo,
@@ -40,21 +45,17 @@ public class SubscriptionDetectorService {
     public List<SubscriptionSuggestion> detect(String userEmail) {
         List<SubscriptionSuggestion> all = computeSuggestions(userEmail);
 
-        // permanent blokk (accepted/rejected som lagres i DB)
         Set<String> blocked = decisionRepo.findByUserEmail(userEmail).stream()
                 .map(SuggestionDecision::getSuggestionKey)
                 .collect(Collectors.toSet());
 
-        // eksisterende subscriptions
         List<Subscription> subs = subRepo.findByUserEmailOrderByCreatedAtDesc(userEmail);
 
-        // ✅ providerKey-baserte keys (stabilt selv om brukeren renamer name)
         Set<String> subProviderKeys = subs.stream()
                 .map(s -> norm(firstNonBlank(s.getProviderKey(), s.getName())))
                 .filter(x -> !x.isBlank())
                 .collect(Collectors.toSet());
 
-        // fallback: filtrer også på navn for subscriptions uten providerKey
         Set<String> subNames = subs.stream()
                 .map(s -> norm(s.getName()))
                 .filter(x -> !x.isBlank())
@@ -62,14 +63,16 @@ public class SubscriptionDetectorService {
 
         return all.stream()
                 .filter(s -> !blocked.contains(s.getKey()))
-                // ✅ viktig: filtrer på providerKey
                 .filter(s -> {
                     String pk = norm(firstNonBlank(s.getProviderKey(), s.getName()));
                     return pk.isBlank() || !subProviderKeys.contains(pk);
                 })
-                // ekstra fallback: filtrer på navn (hindrer duplicates hvis pk mangler)
                 .filter(s -> !subNames.contains(norm(s.getName())))
-                .sorted(Comparator.comparingInt(SubscriptionSuggestion::getConfidence).reversed())
+                .sorted(
+                        Comparator.comparingInt(SubscriptionSuggestion::getConfidence).reversed()
+                                .thenComparing(SubscriptionSuggestion::getOccurrences, Comparator.reverseOrder())
+                                .thenComparing(SubscriptionSuggestion::getLastChargeDate, Comparator.reverseOrder())
+                )
                 .limit(120)
                 .toList();
     }
@@ -88,6 +91,7 @@ public class SubscriptionDetectorService {
 
         List<BankTransaction> outgoing = txs.stream()
                 .filter(t -> t.getAmount() != null && t.getAmount().compareTo(BigDecimal.ZERO) < 0)
+                .filter(t -> t.getTxDate() != null)
                 .filter(t -> !isNoise(t))
                 .toList();
 
@@ -99,32 +103,43 @@ public class SubscriptionDetectorService {
 
         for (var entry : groups.entrySet()) {
             String gKey = entry.getKey();
-            List<BankTransaction> g = entry.getValue();
+            List<BankTransaction> group = entry.getValue();
+
+            if (group.size() < 2) continue;
+            if (gKey == null || gKey.isBlank()) continue;
 
             boolean known = gKey.startsWith("prov:");
 
-            // 2 forekomster er nok
-            if (g.size() < 2) continue;
+            List<BankTransaction> g = group.stream()
+                    .sorted(Comparator.comparing(BankTransaction::getTxDate))
+                    .toList();
 
-            g = g.stream().sorted(Comparator.comparing(BankTransaction::getTxDate)).toList();
+            List<LocalDate> dates = g.stream()
+                    .map(BankTransaction::getTxLocalDate)
+                    .filter(Objects::nonNull)
+                    .toList();
 
-            List<BigDecimal> amounts = g.stream().map(t -> t.getAmount().abs()).toList();
+            if (dates.size() < 2) continue;
+
+            IntervalGuess intervalGuess = guessInterval(dates);
+            if (intervalGuess.interval == null) continue;
+
+            LocalDate last = dates.get(dates.size() - 1);
+            if (last.isBefore(today.minusDays(MAX_LAST_AGE_DAYS))) continue;
+
+            List<BigDecimal> amounts = g.stream()
+                    .map(t -> t.getAmount().abs())
+                    .filter(Objects::nonNull)
+                    .sorted()
+                    .toList();
+
+            if (amounts.size() < 2) continue;
+
             BigDecimal med = median(amounts);
             BigDecimal mad = medianAbsDev(amounts, med);
 
-            List<LocalDate> dates = g.stream().map(t -> t.getTxDate().toLocalDate()).toList();
-
-            IntervalGuess ig = guessInterval(dates);
-            if (ig.interval == null) continue;
-
-            LocalDate last = dates.get(dates.size() - 1);
-
-            // ikke vis veldig gamle forslag
-            if (last.isBefore(today.minusDays(MAX_LAST_AGE_DAYS))) continue;
-
-            // beregn "neste" + rull frem til etter i dag
-            LocalDate next = addInterval(last, ig.interval);
-            next = rollForward(next, ig.interval, today);
+            LocalDate next = addInterval(last, intervalGuess.interval);
+            next = rollForward(next, intervalGuess.interval, today);
 
             String providerKey;
             String displayName;
@@ -140,17 +155,22 @@ public class SubscriptionDetectorService {
                 displayName = prettyName(gKey);
             }
 
-            int confidence = scoreConfidence(g.size(), ig, med, mad, known);
+            // ekstra filter: ukjente grupper må ha litt mer substans
+            if (!known && isWeakUnknownCandidate(displayName, g, intervalGuess, med, mad)) {
+                continue;
+            }
 
-            String key = providerKey + "|" + ig.interval + "|" +
-                    med.setScale(0, RoundingMode.HALF_UP).toPlainString();
+            int confidence = scoreConfidence(g.size(), intervalGuess, med, mad, known, last, today);
+
+            String amountKey = med.setScale(0, RoundingMode.HALF_UP).toPlainString();
+            String key = providerKey + "|" + intervalGuess.interval + "|" + amountKey;
 
             result.add(new SubscriptionSuggestion(
                     key,
                     displayName,
                     med.setScale(2, RoundingMode.HALF_UP),
                     firstCurrency(g),
-                    ig.interval,
+                    intervalGuess.interval,
                     last,
                     next,
                     g.size(),
@@ -161,77 +181,162 @@ public class SubscriptionDetectorService {
             ));
         }
 
-        return result;
+        return dedupeByProvider(result);
+    }
+
+    private List<SubscriptionSuggestion> dedupeByProvider(List<SubscriptionSuggestion> xs) {
+        Map<String, SubscriptionSuggestion> best = new LinkedHashMap<>();
+        for (SubscriptionSuggestion s : xs) {
+            String k = norm(firstNonBlank(s.getProviderKey(), s.getName()));
+            SubscriptionSuggestion existing = best.get(k);
+            if (existing == null) {
+                best.put(k, s);
+                continue;
+            }
+
+            boolean replace =
+                    s.getConfidence() > existing.getConfidence()
+                            || (s.getConfidence() == existing.getConfidence() && s.getOccurrences() > existing.getOccurrences())
+                            || (s.getConfidence() == existing.getConfidence()
+                            && s.getOccurrences() == existing.getOccurrences()
+                            && s.getLastChargeDate() != null
+                            && existing.getLastChargeDate() != null
+                            && s.getLastChargeDate().isAfter(existing.getLastChargeDate()));
+
+            if (replace) best.put(k, s);
+        }
+        return new ArrayList<>(best.values());
     }
 
     private String groupKey(BankTransaction t) {
-        String raw = (safe(t.getDescription()) + " " + safe(t.getReference())).toLowerCase(Locale.ROOT);
+        String raw = rawText(t);
+        String normalized = normalizeMerchantText(raw);
 
-        Optional<KnownMerchants.Match> match = KnownMerchants.match(raw, raw);
+        Optional<KnownMerchants.Match> match = KnownMerchants.match(normalized, raw);
         if (match.isPresent()) return "prov:" + match.get().providerKey();
 
-        // fallback for viktige ting hvis KnownMerchants ikke matcher
-        if (raw.contains("viaplay")) return "prov:viaplay";
-        if (raw.contains("spotify")) return "prov:spotify";
-        if (raw.contains("netflix")) return "prov:netflix";
-        if (raw.contains("disney")) return "prov:disney_plus";
-        if (raw.contains("tv2") || raw.contains("tv 2")) return "prov:tv2_play";
-
-        raw = raw.replaceAll("\\b(kortkjøp|trans\\s*type|sms\\s*varsling|vipps|straksoverføring|avtalegiro|faktura)\\b", " ");
-        raw = raw.replaceAll("\\b(provisjon|renter|debetrenter|gebyr|kredittkort)\\b", " ");
-        raw = raw.replaceAll("\\d+", " ");
-        raw = raw.replaceAll("[^a-zæøå. ]", " ");
-        raw = raw.replaceAll("\\s+", " ").trim();
-
-        for (String p : raw.split(" ")) {
-            if (p.contains(".") && p.length() >= 4) return p;
+        // fallback på klare merchants
+        if (normalized.contains("viaplay")) return "prov:viaplay";
+        if (normalized.contains("spotify")) return "prov:spotify";
+        if (normalized.contains("netflix")) return "prov:netflix";
+        if (normalized.contains("disney")) return "prov:disney_plus";
+        if (normalized.contains("tv2") || normalized.contains("tv 2")) return "prov:tv2_play";
+        if (normalized.contains("primevideo") || normalized.contains("prime video") || normalized.contains("amazon prime")) {
+            return "prov:prime_video";
         }
+        if (normalized.contains("apple.com/bill") || normalized.contains("itunes")) {
+            return "prov:apple_subscriptions";
+        }
+        if (normalized.contains("google one")) return "prov:google_one";
+        if (normalized.contains("google play")) return "prov:google_play";
 
-        return raw;
+        String token = bestUnknownToken(normalized);
+        return token == null ? normalized : token;
     }
 
-    private static final Pattern NOISE =
-            Pattern.compile(".*\\b(overføring|mellom\\s*egne|lønn|skatt|atm|uttak|kontant|refund|tilbakebetaling)\\b.*",
-                    Pattern.CASE_INSENSITIVE);
+    private String bestUnknownToken(String normalized) {
+        if (normalized == null || normalized.isBlank()) return null;
+
+        for (String p : normalized.split(" ")) {
+            String x = p.trim();
+            if (x.isBlank()) continue;
+            if (x.length() < 4) continue;
+            if (GENERIC_TOKENS.contains(x)) continue;
+            if (x.contains(".")) return x;
+        }
+
+        List<String> tokens = Arrays.stream(normalized.split(" "))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .filter(s -> s.length() >= 4)
+                .filter(s -> !GENERIC_TOKENS.contains(s))
+                .limit(3)
+                .toList();
+
+        if (tokens.isEmpty()) return normalized;
+        return String.join(" ", tokens);
+    }
+
+    private static final Set<String> GENERIC_TOKENS = Set.of(
+            "kortkjop", "kortkjøp", "visa", "mastercard", "debit", "credit", "betaling",
+            "purchase", "card", "butikk", "butikkjop", "kjop", "kjøp", "abonnement",
+            "subscription", "monthly", "month", "faktura", "avtalegiro", "service"
+    );
+
+    private static final Pattern NOISE = Pattern.compile(
+            ".*\\b(" +
+                    "overf(ø|o)ring|mellom\\s*egne|l(ø|o)nn|skatt|atm|uttak|kontant|refund|tilbakebetaling|" +
+                    "vipps\\s*til\\s*privat|straks?overf(ø|o)ring|bankoverf(ø|o)ring|sparing|gebyr|renter|" +
+                    "debetrenter|provisjon|kredittkortbetaling|kredittkort\\s*innbetaling|rentebetaling|" +
+                    "klarna\\s*innbetaling|avdrag|betaling\\s*av\\s*l(å|a)n" +
+                    ")\\b.*",
+            Pattern.CASE_INSENSITIVE
+    );
 
     private boolean isNoise(BankTransaction t) {
-        String s = (safe(t.getDescription()) + " " + safe(t.getReference())).toLowerCase(Locale.ROOT);
+        String s = rawText(t);
         return NOISE.matcher(s).matches();
     }
 
-    private record IntervalGuess(String interval) {}
+    private record IntervalGuess(String interval, int typicalDays, int varianceScore) {}
 
     private IntervalGuess guessInterval(List<LocalDate> dates) {
-        if (dates.size() < 2) return new IntervalGuess(null);
+        if (dates.size() < 2) return new IntervalGuess(null, 0, 0);
 
         List<Integer> diffs = new ArrayList<>();
         for (int i = 1; i < dates.size(); i++) {
-            int d = (int) Duration.between(
-                    dates.get(i - 1).atStartOfDay(),
-                    dates.get(i).atStartOfDay()
-            ).toDays();
-            if (d > 0) diffs.add(d);
+            long d = ChronoUnit.DAYS.between(dates.get(i - 1), dates.get(i));
+            if (d > 0) diffs.add((int) d);
         }
-        if (diffs.isEmpty()) return new IntervalGuess(null);
 
-        diffs.sort(Integer::compareTo);
+        if (diffs.isEmpty()) return new IntervalGuess(null, 0, 0);
 
+        Collections.sort(diffs);
+        int median = diffs.get(diffs.size() / 2);
+
+        // tell hvor mange som matcher omtrent samme rytme
+        int monthlyHits = countInRange(diffs, 24, 40);
+        int weeklyHits = countInRange(diffs, 5, 10);
+        int quarterlyHits = countInRange(diffs, 75, 105);
+        int yearlyHits = countInRange(diffs, 330, 390);
+
+        // 2 trekk: best-effort
         if (diffs.size() == 1) {
             int d = diffs.get(0);
-            if (d >= 5 && d <= 12) return new IntervalGuess("WEEKLY");
-            if (d >= 15 && d <= 75) return new IntervalGuess("MONTHLY");
-            if (d >= 70 && d <= 120) return new IntervalGuess("QUARTERLY");
-            if (d >= 300 && d <= 430) return new IntervalGuess("YEARLY");
-            return new IntervalGuess(null);
+            if (d >= 5 && d <= 10) return new IntervalGuess("WEEKLY", d, 90);
+            if (d >= 20 && d <= 45) return new IntervalGuess("MONTHLY", d, 75);
+            if (d >= 75 && d <= 105) return new IntervalGuess("QUARTERLY", d, 75);
+            if (d >= 330 && d <= 390) return new IntervalGuess("YEARLY", d, 75);
+            return new IntervalGuess(null, 0, 0);
         }
 
-        int median = diffs.get(diffs.size() / 2);
-        if (median >= 6 && median <= 10) return new IntervalGuess("WEEKLY");
-        if (median >= 18 && median <= 75) return new IntervalGuess("MONTHLY");
-        if (median >= 70 && median <= 120) return new IntervalGuess("QUARTERLY");
-        if (median >= 300 && median <= 430) return new IntervalGuess("YEARLY");
+        // foretrekk rytme med flest treff
+        if (monthlyHits >= 2 && monthlyHits >= weeklyHits && monthlyHits >= quarterlyHits && monthlyHits >= yearlyHits) {
+            return new IntervalGuess("MONTHLY", median, 90);
+        }
+        if (weeklyHits >= 2 && weeklyHits >= quarterlyHits && weeklyHits >= yearlyHits) {
+            return new IntervalGuess("WEEKLY", median, 90);
+        }
+        if (quarterlyHits >= 2 && quarterlyHits >= yearlyHits) {
+            return new IntervalGuess("QUARTERLY", median, 85);
+        }
+        if (yearlyHits >= 2) {
+            return new IntervalGuess("YEARLY", median, 85);
+        }
 
-        return new IntervalGuess(null);
+        // fallback
+        if (median >= 5 && median <= 10) return new IntervalGuess("WEEKLY", median, 75);
+        if (median >= 20 && median <= 45) return new IntervalGuess("MONTHLY", median, 70);
+        if (median >= 75 && median <= 105) return new IntervalGuess("QUARTERLY", median, 70);
+        if (median >= 330 && median <= 390) return new IntervalGuess("YEARLY", median, 70);
+
+        return new IntervalGuess(null, 0, 0);
+    }
+
+    private int countInRange(List<Integer> xs, int min, int max) {
+        int n = 0;
+        for (int x : xs) if (x >= min && x <= max) n++;
+        return n;
     }
 
     private LocalDate addInterval(LocalDate d, String interval) {
@@ -246,35 +351,71 @@ public class SubscriptionDetectorService {
 
     private LocalDate rollForward(LocalDate next, String interval, LocalDate today) {
         if (next == null) return null;
-        LocalDate d = next;
 
+        LocalDate d = next;
         int guard = 0;
         while (!d.isAfter(today) && guard++ < 500) {
-            d = switch (interval) {
-                case "WEEKLY" -> d.plusWeeks(1);
-                case "MONTHLY" -> d.plusMonths(1);
-                case "QUARTERLY" -> d.plusMonths(3);
-                case "YEARLY" -> d.plusYears(1);
-                default -> d.plusMonths(1);
-            };
+            d = addInterval(d, interval);
         }
         return d;
     }
 
-    private int scoreConfidence(int occurrences, IntervalGuess ig, BigDecimal median, BigDecimal mad, boolean known) {
-        int score = 40;
-        if (known) score += 25;
+    private int scoreConfidence(
+            int occurrences,
+            IntervalGuess ig,
+            BigDecimal median,
+            BigDecimal mad,
+            boolean known,
+            LocalDate last,
+            LocalDate today
+    ) {
+        int score = 35;
 
-        score += Math.min(25, occurrences * 7);
+        if (known) score += 22;
 
-        BigDecimal rel = median.signum() == 0 ? BigDecimal.ONE : mad.divide(median, 4, RoundingMode.HALF_UP);
-        if (rel.compareTo(new BigDecimal("0.03")) <= 0) score += 20;
-        else if (rel.compareTo(new BigDecimal("0.08")) <= 0) score += 12;
-        else score += 5;
+        score += Math.min(24, occurrences * 6);
+        score += Math.min(12, ig.varianceScore / 10);
+
+        BigDecimal rel = median.signum() == 0
+                ? BigDecimal.ONE
+                : mad.divide(median, 4, RoundingMode.HALF_UP);
+
+        if (rel.compareTo(LOW_VARIATION) <= 0) score += 18;
+        else if (rel.compareTo(MEDIUM_VARIATION) <= 0) score += 12;
+        else if (rel.compareTo(HIGH_VARIATION) <= 0) score += 6;
+        else score -= 6;
 
         if ("MONTHLY".equals(ig.interval)) score += 5;
+        if ("YEARLY".equals(ig.interval) || "QUARTERLY".equals(ig.interval)) score += 2;
+
+        long ageDays = ChronoUnit.DAYS.between(last, today);
+        if (ageDays <= 45) score += 6;
+        else if (ageDays <= 90) score += 3;
+        else if (ageDays > 180) score -= 5;
 
         return Math.max(0, Math.min(99, score));
+    }
+
+    private boolean isWeakUnknownCandidate(
+            String displayName,
+            List<BankTransaction> g,
+            IntervalGuess ig,
+            BigDecimal median,
+            BigDecimal mad
+    ) {
+        if (displayName == null || displayName.isBlank()) return true;
+        if (g.size() < 2) return true;
+
+        String dn = norm(displayName);
+        if (dn.length() < 4) return true;
+
+        BigDecimal rel = median.signum() == 0
+                ? BigDecimal.ONE
+                : mad.divide(median, 4, RoundingMode.HALF_UP);
+
+        // ukjente må være litt mer stabile, ellers mye støy
+        return !"MONTHLY".equals(ig.interval) && g.size() < 3
+                || rel.compareTo(new BigDecimal("0.35")) > 0;
     }
 
     private String firstCurrency(List<BankTransaction> g) {
@@ -287,15 +428,39 @@ public class SubscriptionDetectorService {
 
     private String rawText(List<BankTransaction> g) {
         StringBuilder sb = new StringBuilder();
-        for (var t : g) {
-            if (t.getDescription() != null) sb.append(t.getDescription()).append(" ");
-            if (t.getReference() != null) sb.append(t.getReference()).append(" ");
+        for (BankTransaction t : g) {
+            sb.append(rawText(t)).append(' ');
         }
         return sb.toString();
     }
 
+    private String rawText(BankTransaction t) {
+        return (safe(t.getDescription()) + " " + safe(t.getReference())).trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeMerchantText(String raw) {
+        String s = safe(raw).toLowerCase(Locale.ROOT);
+
+        s = s.replaceAll("https?://", " ");
+        s = s.replaceAll("\\bwww\\.", " ");
+        s = s.replaceAll("\\b(apl|pos|visa|mc|mcc|trx|trans|purchase|betaling|kortkjøp|kortkjop)\\b", " ");
+        s = s.replaceAll("\\b(avtalegiro|faktura|e-faktura|efaktura|nettbank|belastning)\\b", " ");
+        s = s.replaceAll("\\b(stockholm|oslo|bergen|trondheim|london|dublin|se|no|dk|fi)\\b", " ");
+        s = s.replaceAll("\\d+", " ");
+        s = s.replace("*", " ");
+        s = s.replace("_", " ");
+        s = s.replace("-", " ");
+        s = s.replaceAll("[^a-zæøå./ ]", " ");
+        s = s.replaceAll("\\s+", " ").trim();
+
+        return s;
+    }
+
     private BigDecimal median(List<BigDecimal> xs) {
-        List<BigDecimal> s = xs.stream().filter(Objects::nonNull).sorted().toList();
+        List<BigDecimal> s = xs.stream()
+                .filter(Objects::nonNull)
+                .sorted()
+                .toList();
         if (s.isEmpty()) return BigDecimal.ZERO;
         return s.get(s.size() / 2);
     }
@@ -312,11 +477,21 @@ public class SubscriptionDetectorService {
 
     private String prettyName(String key) {
         if (key == null || key.isBlank()) return "Ukjent";
-        String[] p = key.split(" ");
+
+        String cleaned = key
+                .replace(".", " ")
+                .replace("_", " ")
+                .replace("-", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        String[] parts = cleaned.split(" ");
         StringBuilder sb = new StringBuilder();
-        for (String w : p) {
-            if (w.isBlank()) continue;
-            sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1)).append(" ");
+        for (String p : parts) {
+            if (p.isBlank()) continue;
+            sb.append(Character.toUpperCase(p.charAt(0)))
+                    .append(p.substring(1))
+                    .append(' ');
         }
         return sb.toString().trim();
     }
