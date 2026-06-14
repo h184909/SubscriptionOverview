@@ -1,6 +1,7 @@
 package no.hvl.subscriptionapp.web;
 
 import jakarta.servlet.http.HttpSession;
+import no.hvl.subscriptionapp.domain.BankConsent;
 import no.hvl.subscriptionapp.domain.Person;
 import no.hvl.subscriptionapp.repository.*;
 import no.hvl.subscriptionapp.service.PasswordService;
@@ -13,8 +14,6 @@ public class ProfileController {
 
     private final PersonRepository personRepo;
     private final PasswordService passwordService;
-
-    // ✅ For sletting av alt bruker-eid innhold
     private final SubscriptionRepository subscriptionRepo;
     private final BankTransactionRepository txRepo;
     private final BankConsentRepository consentRepo;
@@ -45,7 +44,12 @@ public class ProfileController {
         if (p == null) return "redirect:/login";
 
         model.addAttribute("email", p.getEmail());
-        model.addAttribute("preferredLanguage", p.getPreferredLanguage()); // "en"/"nb" (kan være null)
+        model.addAttribute("preferredLanguage", p.getPreferredLanguage());
+
+        BankConsent consent = consentRepo.findTopByUserEmailOrderByCreatedAtDesc(email).orElse(null);
+        model.addAttribute("bankConsent", consent);
+        model.addAttribute("bankConnected", consent != null);
+
         return "profile";
     }
 
@@ -75,14 +79,12 @@ public class ProfileController {
             return profile(session, model);
         }
 
-        // enkel policy (kan strammes inn)
         if (newPassword.length() < 8) {
             model.addAttribute("flashError", "New password must be at least 8 characters.");
             return profile(session, model);
         }
 
-        boolean ok = passwordService.verify(currentPassword, p.getSalt(), p.getHash());
-        if (!ok) {
+        if (!passwordService.verify(currentPassword, p.getSalt(), p.getHash())) {
             model.addAttribute("flashError", "Wrong current password.");
             return profile(session, model);
         }
@@ -94,6 +96,17 @@ public class ProfileController {
 
         model.addAttribute("flashMsg", "Password updated.");
         return profile(session, model);
+    }
+
+    @PostMapping("/app/profile/disconnect-bank")
+    public String disconnectBank(HttpSession session) {
+        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
+        if (email == null) return "redirect:/login";
+
+        consentRepo.deleteByUserEmail(email);
+
+        session.setAttribute("flashMsg", "Bank disconnected.");
+        return "redirect:/app/profile";
     }
 
     @PostMapping("/app/profile/delete")
@@ -124,15 +137,14 @@ public class ProfileController {
             return profile(session, model);
         }
 
-        // ✅ Slett alt som er koblet til userEmail (rekkefølge: “barn” først)
         try { decisionRepo.deleteByUserEmail(email); } catch (Exception ignored) {}
         try { subscriptionRepo.deleteByUserEmail(email); } catch (Exception ignored) {}
         try { txRepo.deleteByUserEmail(email); } catch (Exception ignored) {}
         try { consentRepo.deleteByUserEmail(email); } catch (Exception ignored) {}
 
         personRepo.deleteById(email);
-
         session.invalidate();
+
         return "redirect:/";
     }
 
@@ -145,20 +157,19 @@ public class ProfileController {
         if (email == null) return "redirect:/login";
 
         String v = (lang == null ? "" : lang.trim().toLowerCase());
+
         var locale = switch (v) {
             case "nb", "no" -> java.util.Locale.forLanguageTag("nb-NO");
             default -> java.util.Locale.forLanguageTag("en-US");
         };
 
-        // ✅ session locale (tar effekt med én gang)
         session.setAttribute(
                 org.springframework.web.servlet.i18n.SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME,
                 locale
         );
 
-        // ✅ persist per bruker
         personRepo.findById(email).ifPresent(p -> {
-            p.setPreferredLanguage(locale.getLanguage()); // "nb" / "en"
+            p.setPreferredLanguage(locale.getLanguage());
             personRepo.save(p);
         });
 
