@@ -13,6 +13,7 @@ import no.hvl.subscriptionapp.repository.BankTransactionRepository;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.math.BigDecimal;
@@ -42,9 +43,6 @@ public class OpenBankingController {
         this.props = props;
     }
 
-    /**
-     * 1) Vis bankliste
-     */
     @GetMapping("/openbanking/institutions")
     public String institutions(HttpSession session, Model model) {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
@@ -58,12 +56,6 @@ public class OpenBankingController {
         return "institutions";
     }
 
-    /**
-     * 2) Start connect mot valgt institutionId
-     */
-    /**
-     * 2) Start connect mot valgt institutionId
-     */
     @GetMapping("/openbanking/connect")
     public String connect(
             @RequestParam("institutionId") String institutionId,
@@ -72,12 +64,8 @@ public class OpenBankingController {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
         if (email == null) return "redirect:/login";
 
+        // Foreløpig hardkodet fordi props.getCallbackUrl() brukte feil verdi på serveren.
         String callback = "https://subscriptionoverview.com/openbanking/callback";
-
-        System.out.println("================================");
-        System.out.println("YAPILY CALLBACK URL USED = " + callback);
-        System.out.println("YAPILY INSTITUTION ID = " + institutionId);
-        System.out.println("================================");
 
         var body = new YapilyDtos.CreateAccountAuthRequestBody(email, institutionId, callback);
 
@@ -85,17 +73,9 @@ public class OpenBankingController {
                 yapily.postJson("/account-auth-requests", body, new TypeReference<>() {});
 
         String authUrl = res.data().authorisationUrl();
-
-        System.out.println("================================");
-        System.out.println("YAPILY AUTH URL = " + authUrl);
-        System.out.println("================================");
-
         return "redirect:" + authUrl;
     }
 
-    /**
-     * 3) Callback fra Yapily
-     */
     @GetMapping("/openbanking/callback")
     public String callback(
             @RequestParam(name = "consent", required = false) String consentToken,
@@ -128,13 +108,39 @@ public class OpenBankingController {
         return "redirect:/app/suggestions";
     }
 
-    /**
-     * Henter kontoer + transaksjoner fra Yapily og lagrer nye i DB.
-     */
+    @PostMapping("/app/import-again")
+    public String importAgain(HttpSession session) {
+        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
+        if (email == null) return "redirect:/login";
+
+        var consentOpt = consentRepo.findTopByUserEmailOrderByCreatedAtDesc(email);
+
+        if (consentOpt.isEmpty()) {
+            session.setAttribute("flashMsg", "Ingen banktilkobling funnet. Koble til bank først.");
+            return "redirect:/openbanking/institutions";
+        }
+
+        BankConsent consent = consentOpt.get();
+
+        try {
+            int imported = importTransactions(email, consent.getConsentToken());
+
+            if (imported == 0) {
+                session.setAttribute("flashMsg", "Import fullført. Ingen nye transaksjoner funnet.");
+            } else {
+                session.setAttribute("flashMsg", "Import fullført. Importerte " + imported + " nye transaksjoner.");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            session.setAttribute("flashMsg", "Import feilet. Prøv å koble til banken på nytt.");
+        }
+
+        return "redirect:/app/suggestions";
+    }
+
     private int importTransactions(String userEmail, String consentToken) {
         int imported = 0;
 
-        // Konto-endepunktet parses løst som Map for å slippe å være avhengig av en egen Account DTO akkurat nå
         YapilyDtos.ApiListResponse<Map<String, Object>> accountsRes =
                 yapily.get(
                         "/accounts",

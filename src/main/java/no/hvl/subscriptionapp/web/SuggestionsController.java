@@ -3,6 +3,7 @@ package no.hvl.subscriptionapp.web;
 import jakarta.servlet.http.HttpSession;
 import no.hvl.subscriptionapp.domain.Subscription;
 import no.hvl.subscriptionapp.domain.SuggestionDecision;
+import no.hvl.subscriptionapp.repository.BankConsentRepository;
 import no.hvl.subscriptionapp.repository.SubscriptionRepository;
 import no.hvl.subscriptionapp.repository.SuggestionDecisionRepository;
 import no.hvl.subscriptionapp.service.SubscriptionDetectorService;
@@ -23,15 +24,18 @@ public class SuggestionsController {
     private final SubscriptionDetectorService detector;
     private final SubscriptionRepository subscriptionRepository;
     private final SuggestionDecisionRepository decisionRepository;
+    private final BankConsentRepository consentRepository;
 
     public SuggestionsController(
             SubscriptionDetectorService detector,
             SubscriptionRepository subscriptionRepository,
-            SuggestionDecisionRepository decisionRepository
+            SuggestionDecisionRepository decisionRepository,
+            BankConsentRepository consentRepository
     ) {
         this.detector = detector;
         this.subscriptionRepository = subscriptionRepository;
         this.decisionRepository = decisionRepository;
+        this.consentRepository = consentRepository;
     }
 
     @GetMapping("/app/suggestions")
@@ -43,9 +47,15 @@ public class SuggestionsController {
         if (flash != null) session.removeAttribute(SESSION_FLASH);
         model.addAttribute("flashMsg", flash);
 
+        boolean bankConnected = consentRepository.findTopByUserEmailOrderByCreatedAtDesc(email).isPresent();
+        model.addAttribute("bankConnected", bankConnected);
+
+        // enkle defaults til JSP-en din
+        model.addAttribute("importState", "IDLE");
+        model.addAttribute("importStatus", bankConnected ? "Bank connected" : "Bank not connected");
+
         List<SubscriptionSuggestion> suggestions = new ArrayList<>(detector.detect(email));
 
-        // skjul "avviste" midlertidig (session)
         Set<String> hidden = getHiddenKeys(session);
         if (!hidden.isEmpty()) suggestions.removeIf(s -> hidden.contains(s.getKey()));
 
@@ -68,11 +78,9 @@ public class SuggestionsController {
 
         addSubscriptionFromSuggestion(email, found.get());
 
-        // Accepted = permanent blokk
         decisionRepository.findByUserEmailAndSuggestionKey(email, key)
                 .orElseGet(() -> decisionRepository.save(new SuggestionDecision(email, key, "ACCEPTED")));
 
-        // fjern fra session-hidden hvis den ligger der
         getHiddenKeys(session).remove(key);
 
         session.setAttribute(SESSION_FLASH, "Abonnement lagt til: " + found.get().getName());
@@ -84,11 +92,9 @@ public class SuggestionsController {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
         if (email == null) return "redirect:/login";
 
-        // Ikke permanent: slett evt tidligere decision
         decisionRepository.findByUserEmailAndSuggestionKey(email, key)
                 .ifPresent(decisionRepository::delete);
 
-        // skjul midlertidig i session
         getHiddenKeys(session).add(key);
 
         session.setAttribute(SESSION_FLASH, "Forslag avvist (midlertidig skjult).");
@@ -167,7 +173,6 @@ public class SuggestionsController {
         return "redirect:/app/suggestions";
     }
 
-    // ✅ Viktig: nå lagrer vi providerKey og cancelUrl dersom entity støtter det
     private void addSubscriptionFromSuggestion(String email, SubscriptionSuggestion s) {
         LocalDate next = s.getNextExpectedDate();
         if (next != null && next.isBefore(LocalDate.now().minusDays(7))) {
@@ -184,8 +189,6 @@ public class SuggestionsController {
                 null
         );
 
-        // disse setterene må finnes på Subscription-entity:
-        // setProviderKey(String) og setCancelUrl(String)
         try {
             if (s.getProviderKey() != null && !s.getProviderKey().isBlank()) {
                 sub.setProviderKey(s.getProviderKey());
@@ -194,7 +197,6 @@ public class SuggestionsController {
                 sub.setCancelUrl(s.getCancelUrl());
             }
         } catch (Exception ignored) {
-            // hvis entity ikke har feltene enda, krasjer vi ikke
         }
 
         subscriptionRepository.save(sub);
