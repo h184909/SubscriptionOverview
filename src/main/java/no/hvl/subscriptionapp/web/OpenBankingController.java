@@ -61,6 +61,9 @@ public class OpenBankingController {
     /**
      * 2) Start connect mot valgt institutionId
      */
+    /**
+     * 2) Start connect mot valgt institutionId
+     */
     @GetMapping("/openbanking/connect")
     public String connect(
             @RequestParam("institutionId") String institutionId,
@@ -70,12 +73,23 @@ public class OpenBankingController {
         if (email == null) return "redirect:/login";
 
         String callback = props.getCallbackUrl();
+
+        System.out.println("================================");
+        System.out.println("YAPILY CALLBACK URL USED = " + callback);
+        System.out.println("YAPILY INSTITUTION ID = " + institutionId);
+        System.out.println("================================");
+
         var body = new YapilyDtos.CreateAccountAuthRequestBody(email, institutionId, callback);
 
         YapilyDtos.ApiSingleResponse<YapilyDtos.AccountAuthRequestData> res =
                 yapily.postJson("/account-auth-requests", body, new TypeReference<>() {});
 
         String authUrl = res.data().authorisationUrl();
+
+        System.out.println("================================");
+        System.out.println("YAPILY AUTH URL = " + authUrl);
+        System.out.println("================================");
+
         return "redirect:" + authUrl;
     }
 
