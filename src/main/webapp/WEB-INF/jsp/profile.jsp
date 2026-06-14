@@ -73,7 +73,7 @@
           <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
             <form method="post" action="<c:url value='/app/import-again'/>" style="margin:0;">
               <button class="btn btn-primary" type="submit">
-                <fmt:message key="profile.bank.importAgain"/>
+                <fmt:message key="profile.bank.sync"/>
               </button>
             </form>
 

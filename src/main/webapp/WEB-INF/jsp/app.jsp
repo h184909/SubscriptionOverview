@@ -7,10 +7,6 @@
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="dash.title"/></title>
   <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
-  <c:url var="favIco" value="/favicon.ico"/>
-  <c:url var="fav16" value="/favicon-16.png"/>
-  <c:url var="fav32" value="/favicon-32.png"/>
-  <c:url var="appleTouch" value="/apple-touch-icon.png"/>
 
   <link rel="icon" href="<c:url value='/favicon.ico'/>" />
   <link rel="icon" type="image/png" sizes="32x32" href="<c:url value='/favicon-32.png'/>" />
@@ -36,7 +32,7 @@
       <a href="<c:url value='/app/subscriptions'/>"><fmt:message key="nav.subscriptions"/></a>
       <a href="<c:url value='/app/suggestions'/>"><fmt:message key="nav.suggestions"/></a>
       <a href="<c:url value='/app/transactions/import-csv'/>"><fmt:message key="nav.importCsv"/></a>
-      <a href="<c:url value='/app/profile'/>">Profile</a>
+      <a href="<c:url value='/app/profile'/>"><fmt:message key="nav.profile"/></a>
 
       <span class="muted" style="margin:0 6px;">|</span>
 
@@ -46,6 +42,12 @@
       <a href="${toNb}" title="Norsk" aria-label="Norsk">🇳🇴</a>
     </div>
   </div>
+
+  <c:if test="${not empty flashMsg}">
+    <div class="card">
+      <div class="notice flash"><b><c:out value="${flashMsg}"/></b></div>
+    </div>
+  </c:if>
 
   <div class="grid two">
     <div class="card">
@@ -57,14 +59,39 @@
       <c:choose>
         <c:when test="${bankConnected}">
           <div class="pill ok">✅ <fmt:message key="dash.bankConnected"/></div>
-          <div style="margin-top:10px;">
-            <a class="btn" href="<c:url value='/openbanking/institutions'/>"><fmt:message key="dash.bankReconnect"/></a>
+
+          <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <form method="post" action="<c:url value='/app/import-again'/>" style="margin:0;">
+              <button class="btn btn-primary" type="submit">
+                <fmt:message key="dash.bankSync"/>
+              </button>
+            </form>
+
+            <a class="btn" href="<c:url value='/openbanking/institutions'/>">
+              <fmt:message key="dash.bankReconnect"/>
+            </a>
+
+            <a class="btn" href="<c:url value='/app/profile'/>">
+              <fmt:message key="dash.bankManage"/>
+            </a>
+          </div>
+
+          <div class="muted" style="margin-top:10px;">
+            <fmt:message key="dash.bankConnectedHint"/>
           </div>
         </c:when>
+
         <c:otherwise>
           <div class="pill warn">⚠️ <fmt:message key="dash.bankNotConnected"/></div>
+
           <div style="margin-top:10px;">
-            <a class="btn btn-primary" href="<c:url value='/openbanking/institutions'/>"><fmt:message key="dash.bankConnect"/></a>
+            <a class="btn btn-primary" href="<c:url value='/openbanking/institutions'/>">
+              <fmt:message key="dash.bankConnect"/>
+            </a>
+          </div>
+
+          <div class="muted" style="margin-top:10px;">
+            <fmt:message key="dash.bankNotConnectedHint"/>
           </div>
         </c:otherwise>
       </c:choose>
@@ -175,10 +202,7 @@
           <fmt:message key="dash.totalMonthly"/>
           <b>
             <c:out value="${totalMonthlyNok}"/>
-            <c:choose>
-              <c:when test="${pageContext.request.locale.language == 'nb'}"> NOK</c:when>
-              <c:otherwise> <c:out value="${subs[0].currency}"/></c:otherwise>
-            </c:choose>
+            NOK
           </b>
         </span>
       </div>
