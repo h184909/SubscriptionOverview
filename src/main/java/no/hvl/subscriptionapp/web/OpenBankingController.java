@@ -72,7 +72,7 @@ public class OpenBankingController {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
         if (email == null) return "redirect:/login";
 
-        String callback = props.getCallbackUrl();
+        String callback = "https://subscriptionoverview.com/openbanking/callback";
 
         System.out.println("================================");
         System.out.println("YAPILY CALLBACK URL USED = " + callback);
