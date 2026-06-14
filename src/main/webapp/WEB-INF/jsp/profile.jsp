@@ -51,21 +51,20 @@
 
   <div class="grid two">
 
-    <!-- Bank connection -->
     <div class="card">
-      <h3>Bank connection</h3>
+      <h3><fmt:message key="profile.bank.title"/></h3>
 
       <c:choose>
         <c:when test="${bankConnected}">
-          <div class="pill ok">✅ Bank connected</div>
+          <div class="pill ok">✅ <fmt:message key="profile.bank.connected"/></div>
 
           <div class="muted" style="margin-top:10px;">
-            Institution:
+            <fmt:message key="profile.bank.institution"/>:
             <b><c:out value="${bankConsent.institutionId}"/></b>
           </div>
 
           <div class="muted" style="margin-top:6px;">
-            Connected:
+            <fmt:message key="profile.bank.connectedAt"/>:
             <b><c:out value="${bankConsent.createdAt}"/></b>
           </div>
 
@@ -73,40 +72,43 @@
 
           <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
             <form method="post" action="<c:url value='/app/import-again'/>" style="margin:0;">
-              <button class="btn btn-primary" type="submit">Import again</button>
+              <button class="btn btn-primary" type="submit">
+                <fmt:message key="profile.bank.importAgain"/>
+              </button>
             </form>
 
             <a class="btn" href="<c:url value='/openbanking/institutions'/>">
-              Reconnect
+              <fmt:message key="profile.bank.reconnect"/>
             </a>
 
             <form method="post" action="<c:url value='/app/profile/disconnect-bank'/>" style="margin:0;"
-                  onsubmit="return confirm('Disconnect bank? Existing imported transactions will stay saved.');">
-              <button class="btn btn-danger" type="submit">Disconnect</button>
+                  onsubmit="return confirm('<fmt:message key="profile.bank.disconnectConfirm"/>');">
+              <button class="btn btn-danger" type="submit">
+                <fmt:message key="profile.bank.disconnect"/>
+              </button>
             </form>
           </div>
 
           <div class="muted" style="margin-top:10px;">
-            Disconnect only removes the saved bank consent. Imported transactions and suggestions stay saved.
+            <fmt:message key="profile.bank.disconnectInfo"/>
           </div>
         </c:when>
 
         <c:otherwise>
-          <div class="pill warn">⚠️ Bank not connected</div>
+          <div class="pill warn">⚠️ <fmt:message key="profile.bank.notConnected"/></div>
           <div class="muted" style="margin-top:10px;">
-            Connect your bank to import transactions automatically.
+            <fmt:message key="profile.bank.lead"/>
           </div>
 
           <div style="margin-top:12px;">
             <a class="btn btn-primary" href="<c:url value='/openbanking/institutions'/>">
-              Connect bank
+              <fmt:message key="profile.bank.connect"/>
             </a>
           </div>
         </c:otherwise>
       </c:choose>
     </div>
 
-    <!-- Account/language/password -->
     <div class="card">
       <h3><fmt:message key="profile.accountTitle"/></h3>
       <div class="muted"><fmt:message key="profile.signedInAs"/> <b><c:out value="${email}"/></b></div>
@@ -158,7 +160,6 @@
       </form>
     </div>
 
-    <!-- Danger zone -->
     <div class="card">
       <h3><fmt:message key="profile.dangerTitle"/></h3>
       <div class="muted"><fmt:message key="profile.dangerLead"/></div>
