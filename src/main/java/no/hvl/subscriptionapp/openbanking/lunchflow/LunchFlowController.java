@@ -2,12 +2,19 @@ package no.hvl.subscriptionapp.openbanking.lunchflow;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpSession;
+import no.hvl.subscriptionapp.domain.BankTransaction;
+import no.hvl.subscriptionapp.repository.BankTransactionRepository;
 import no.hvl.subscriptionapp.web.LoginController;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Controller
@@ -17,10 +24,16 @@ public class LunchFlowController {
 
     private final LunchFlowProperties props;
     private final LunchFlowHttp lunchFlow;
+    private final BankTransactionRepository txRepo;
 
-    public LunchFlowController(LunchFlowProperties props, LunchFlowHttp lunchFlow) {
+    public LunchFlowController(
+            LunchFlowProperties props,
+            LunchFlowHttp lunchFlow,
+            BankTransactionRepository txRepo
+    ) {
         this.props = props;
         this.lunchFlow = lunchFlow;
+        this.txRepo = txRepo;
     }
 
     @GetMapping("/lunchflow/connect")
@@ -86,36 +99,16 @@ public class LunchFlowController {
             session.setAttribute("lunchflow_refresh_token", token.refresh_token());
             session.setAttribute("lunchflow_user_id", token.user_id());
 
-            LunchFlowDtos.AccountsResponse accounts = lunchFlow.getAccounts(token.access_token());
+            ImportResult result = importTransactions(email, token.access_token());
 
-            int accountCount = accounts == null || accounts.accounts() == null
-                    ? 0
-                    : accounts.accounts().size();
+            session.setAttribute(
+                    SESSION_FLASH,
+                    "Lunch Flow koblet til. Fant " + result.accountsFound +
+                            " konto(er), " + result.transactionsFound +
+                            " transaksjon(er), importerte " + result.transactionsImported + " nye."
+            );
 
-            int transactionCount = 0;
-            String firstAccountName = null;
-
-            if (accountCount > 0) {
-                LunchFlowDtos.Account firstAccount = accounts.accounts().get(0);
-                firstAccountName = firstAccount.name();
-
-                LunchFlowDtos.TransactionsResponse txRes =
-                        lunchFlow.getTransactions(token.access_token(), firstAccount.id());
-
-                transactionCount = txRes == null || txRes.transactions() == null
-                        ? 0
-                        : txRes.transactions().size();
-            }
-
-            String msg = "Lunch Flow koblet til. Fant " + accountCount + " konto(er).";
-
-            if (firstAccountName != null) {
-                msg += " Første konto: " + firstAccountName + ". Fant "
-                        + transactionCount + " transaksjon(er).";
-            }
-
-            session.setAttribute(SESSION_FLASH, msg);
-            return "redirect:/app/profile";
+            return "redirect:/app/suggestions";
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -123,6 +116,112 @@ public class LunchFlowController {
             return "redirect:/app/profile";
         }
     }
+
+    private ImportResult importTransactions(String userEmail, String accessToken) {
+        LunchFlowDtos.AccountsResponse accountsRes = lunchFlow.getAccounts(accessToken);
+
+        if (accountsRes == null || accountsRes.accounts() == null || accountsRes.accounts().isEmpty()) {
+            return new ImportResult(0, 0, 0);
+        }
+
+        int accountsFound = accountsRes.accounts().size();
+        int transactionsFound = 0;
+        int transactionsImported = 0;
+
+        for (LunchFlowDtos.Account account : accountsRes.accounts()) {
+            if (account.id() == null || account.id().isBlank()) {
+                continue;
+            }
+
+            LunchFlowDtos.TransactionsResponse txRes =
+                    lunchFlow.getTransactions(accessToken, account.id());
+
+            if (txRes == null || txRes.transactions() == null || txRes.transactions().isEmpty()) {
+                continue;
+            }
+
+            transactionsFound += txRes.transactions().size();
+
+            Set<String> seenInThisImport = new HashSet<>();
+
+            for (LunchFlowDtos.Transaction tx : txRes.transactions()) {
+                String txId = normalizeTxId(account.id(), tx);
+
+                if (txId == null || txId.isBlank()) {
+                    continue;
+                }
+
+                if (!seenInThisImport.add(txId)) {
+                    continue;
+                }
+
+                if (txRepo.existsByUserEmailAndAccountIdAndTxId(userEmail, account.id(), txId)) {
+                    continue;
+                }
+
+                BankTransaction entity = new BankTransaction(
+                        userEmail,
+                        account.id(),
+                        txId,
+                        parseLunchFlowDate(tx.date()),
+                        tx.date(),
+                        firstNonBlank(tx.description(), tx.merchant()),
+                        tx.merchant(),
+                        tx.amount(),
+                        tx.currency()
+                );
+
+                txRepo.save(entity);
+                transactionsImported++;
+            }
+        }
+
+        return new ImportResult(accountsFound, transactionsFound, transactionsImported);
+    }
+
+    private String normalizeTxId(String accountId, LunchFlowDtos.Transaction tx) {
+        if (tx == null) return null;
+
+        if (tx.id() != null && !tx.id().isBlank() && !"0".equals(tx.id().trim())) {
+            return tx.id().trim();
+        }
+
+        return accountId + "|" +
+                safe(tx.date()) + "|" +
+                safe(tx.amount() == null ? null : tx.amount().toPlainString()) + "|" +
+                safe(tx.description()) + "|" +
+                safe(tx.merchant());
+    }
+
+    private OffsetDateTime parseLunchFlowDate(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+
+        try {
+            return OffsetDateTime.parse(raw);
+        } catch (Exception ignored) {}
+
+        try {
+            return LocalDate.parse(raw).atStartOfDay().atOffset(ZoneOffset.UTC);
+        } catch (Exception ignored) {}
+
+        return null;
+    }
+
+    private String firstNonBlank(String a, String b) {
+        if (a != null && !a.isBlank()) return a;
+        if (b != null && !b.isBlank()) return b;
+        return null;
+    }
+
+    private String safe(String s) {
+        return s == null ? "" : s.trim();
+    }
+
+    private record ImportResult(
+            int accountsFound,
+            int transactionsFound,
+            int transactionsImported
+    ) {}
 
     @PostConstruct
     public void init() {
