@@ -8,27 +8,35 @@ import org.springframework.web.client.RestClient;
 @Component
 public class LunchFlowHttp {
 
-    private final RestClient client;
+    private final RestClient apiClient;
+    private final RestClient oauthClient;
     private final LunchFlowProperties props;
 
     public LunchFlowHttp(LunchFlowProperties props) {
         this.props = props;
-        this.client = RestClient.builder()
+
+        this.apiClient = RestClient.builder()
                 .baseUrl(props.getBaseUrl())
+                .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                .build();
+
+        this.oauthClient = RestClient.builder()
+                .baseUrl(props.getOauthUrl())
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .build();
 
         System.out.println("================================");
         System.out.println("LunchFlow baseUrl = " + props.getBaseUrl());
+        System.out.println("LunchFlow oauthUrl = " + props.getOauthUrl());
         System.out.println("LunchFlow authorizeUrl = " + props.getAuthorizeUrl());
         System.out.println("LunchFlow redirectUri = " + props.getRedirectUri());
         System.out.println("================================");
     }
 
     public LunchFlowDtos.TokenResponse exchangeCode(LunchFlowDtos.TokenRequest body) {
-        System.out.println("LunchFlow POST " + props.getBaseUrl() + "/oauth/token");
+        System.out.println("LunchFlow POST " + props.getOauthUrl() + "/oauth/token");
 
-        return client.post()
+        return oauthClient.post()
                 .uri("/oauth/token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
@@ -39,20 +47,17 @@ public class LunchFlowHttp {
     public LunchFlowDtos.AccountsResponse getAccounts(String accessToken) {
         System.out.println("LunchFlow GET " + props.getBaseUrl() + "/accounts");
 
-        return client.get()
+        return apiClient.get()
                 .uri("/accounts")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .retrieve()
                 .body(LunchFlowDtos.AccountsResponse.class);
     }
 
-    public LunchFlowDtos.TransactionsResponse getTransactions(
-            String accessToken,
-            String accountId
-    ) {
+    public LunchFlowDtos.TransactionsResponse getTransactions(String accessToken, String accountId) {
         System.out.println("LunchFlow GET " + props.getBaseUrl() + "/accounts/" + accountId + "/transactions");
 
-        return client.get()
+        return apiClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/accounts/{accountId}/transactions")
                         .queryParam("include_pending", "true")
