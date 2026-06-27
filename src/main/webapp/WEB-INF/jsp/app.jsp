@@ -67,7 +67,7 @@
               </button>
             </form>
 
-            <a class="btn" href="<c:url value='/openbanking/institutions'/>">
+            <a class="btn" href="<c:url value='/lunchflow/connect'/>">
               <fmt:message key="dash.bankReconnect"/>
             </a>
 
@@ -85,7 +85,7 @@
           <div class="pill warn">⚠️ <fmt:message key="dash.bankNotConnected"/></div>
 
           <div style="margin-top:10px;">
-            <a class="btn btn-primary" href="<c:url value='/openbanking/institutions'/>">
+            <a class="btn btn-primary" href="<c:url value='/lunchflow/connect'/>">
               <fmt:message key="dash.bankConnect"/>
             </a>
           </div>

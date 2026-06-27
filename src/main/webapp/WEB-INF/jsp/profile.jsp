@@ -77,7 +77,7 @@
               </button>
             </form>
 
-            <a class="btn" href="<c:url value='/openbanking/institutions'/>">
+            <a class="btn" href="<c:url value='/lunchflow/connect'/>">
               <fmt:message key="profile.bank.reconnect"/>
             </a>
 
@@ -101,7 +101,7 @@
           </div>
 
           <div style="margin-top:12px;">
-            <a class="btn btn-primary" href="<c:url value='/openbanking/institutions'/>">
+            <a class="btn btn-primary" href="<c:url value='/lunchflow/connect'/>">
               <fmt:message key="profile.bank.connect"/>
             </a>
           </div>
