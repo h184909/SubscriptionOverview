@@ -1,12 +1,12 @@
 package no.hvl.subscriptionapp.openbanking.lunchflow;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpSession;
 import no.hvl.subscriptionapp.web.LoginController;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.util.UriComponentsBuilder;
-import jakarta.annotation.PostConstruct;
 
 import java.util.UUID;
 
@@ -37,6 +37,7 @@ public class LunchFlowController {
                 .queryParam("redirect_uri", props.getRedirectUri())
                 .queryParam("state", state)
                 .queryParam("email", email)
+                .encode()
                 .build()
                 .toUriString();
 
@@ -87,16 +88,38 @@ public class LunchFlowController {
 
             LunchFlowDtos.AccountsResponse accounts = lunchFlow.getAccounts(token.access_token());
 
-            int count = accounts == null || accounts.accounts() == null
+            int accountCount = accounts == null || accounts.accounts() == null
                     ? 0
                     : accounts.accounts().size();
 
-            session.setAttribute(SESSION_FLASH, "Lunch Flow koblet til. Fant " + count + " konto(er).");
+            int transactionCount = 0;
+            String firstAccountName = null;
+
+            if (accountCount > 0) {
+                LunchFlowDtos.Account firstAccount = accounts.accounts().get(0);
+                firstAccountName = firstAccount.name();
+
+                LunchFlowDtos.TransactionsResponse txRes =
+                        lunchFlow.getTransactions(token.access_token(), firstAccount.id());
+
+                transactionCount = txRes == null || txRes.transactions() == null
+                        ? 0
+                        : txRes.transactions().size();
+            }
+
+            String msg = "Lunch Flow koblet til. Fant " + accountCount + " konto(er).";
+
+            if (firstAccountName != null) {
+                msg += " Første konto: " + firstAccountName + ". Fant "
+                        + transactionCount + " transaksjon(er).";
+            }
+
+            session.setAttribute(SESSION_FLASH, msg);
             return "redirect:/app/profile";
 
         } catch (Exception e) {
             e.printStackTrace();
-            session.setAttribute(SESSION_FLASH, "Lunch Flow token/account-henting feilet.");
+            session.setAttribute(SESSION_FLASH, "Lunch Flow-feil: " + e.getMessage());
             return "redirect:/app/profile";
         }
     }

@@ -33,4 +33,18 @@ public class LunchFlowHttp {
                 .retrieve()
                 .body(LunchFlowDtos.AccountsResponse.class);
     }
+
+    public LunchFlowDtos.TransactionsResponse getTransactions(
+            String accessToken,
+            String accountId
+    ) {
+        return client.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/accounts/{accountId}/transactions")
+                        .queryParam("include_pending", "true")
+                        .build(accountId))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .retrieve()
+                .body(LunchFlowDtos.TransactionsResponse.class);
+    }
 }

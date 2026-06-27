@@ -2,6 +2,7 @@ package no.hvl.subscriptionapp.openbanking.lunchflow;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public class LunchFlowDtos {
@@ -39,5 +40,23 @@ public class LunchFlowDtos {
             String provider,
             String currency,
             String status
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record TransactionsResponse(
+            List<Transaction> transactions,
+            Integer total
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Transaction(
+            String id,
+            String accountId,
+            BigDecimal amount,
+            String currency,
+            String date,
+            String merchant,
+            String description,
+            Boolean isPending
     ) {}
 }
