@@ -32,7 +32,7 @@ public class LunchFlowController {
         session.setAttribute("lunchflow_oauth_state", state);
 
         String url = UriComponentsBuilder
-                .fromHttpUrl(props.getBaseUrl() + "/oauth/authorize")
+                .fromHttpUrl(props.getAuthorizeUrl())
                 .queryParam("client_id", props.getClientId())
                 .queryParam("redirect_uri", props.getRedirectUri())
                 .queryParam("state", state)
