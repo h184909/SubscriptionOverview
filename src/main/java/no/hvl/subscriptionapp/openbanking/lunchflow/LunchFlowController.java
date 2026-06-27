@@ -6,6 +6,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.util.UriComponentsBuilder;
+import jakarta.annotation.PostConstruct;
 
 import java.util.UUID;
 
@@ -98,5 +99,10 @@ public class LunchFlowController {
             session.setAttribute(SESSION_FLASH, "Lunch Flow token/account-henting feilet.");
             return "redirect:/app/profile";
         }
+    }
+
+    @PostConstruct
+    public void init() {
+        System.out.println("✅ LunchFlowController loaded");
     }
 }
