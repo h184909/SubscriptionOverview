@@ -60,12 +60,12 @@
 
           <div class="muted" style="margin-top:10px;">
             <fmt:message key="profile.bank.institution"/>:
-            <b><c:out value="${bankConsent.institutionId}"/></b>
+            <b><c:out value="${bankProviderName}"/></b>
           </div>
 
           <div class="muted" style="margin-top:6px;">
             <fmt:message key="profile.bank.connectedAt"/>:
-            <b><c:out value="${bankConsent.createdAt}"/></b>
+            <b><c:out value="${bankConnectedAt}"/></b>
           </div>
 
           <hr class="sep"/>

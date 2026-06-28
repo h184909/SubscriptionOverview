@@ -3,7 +3,7 @@ package no.hvl.subscriptionapp.web;
 import jakarta.servlet.http.HttpSession;
 import no.hvl.subscriptionapp.domain.Subscription;
 import no.hvl.subscriptionapp.domain.SuggestionDecision;
-import no.hvl.subscriptionapp.repository.BankConsentRepository;
+import no.hvl.subscriptionapp.repository.LunchFlowConnectionRepository;
 import no.hvl.subscriptionapp.repository.SubscriptionRepository;
 import no.hvl.subscriptionapp.repository.SuggestionDecisionRepository;
 import no.hvl.subscriptionapp.service.SubscriptionDetectorService;
@@ -24,18 +24,18 @@ public class SuggestionsController {
     private final SubscriptionDetectorService detector;
     private final SubscriptionRepository subscriptionRepository;
     private final SuggestionDecisionRepository decisionRepository;
-    private final BankConsentRepository consentRepository;
+    private final LunchFlowConnectionRepository lunchFlowConnectionRepository;
 
     public SuggestionsController(
             SubscriptionDetectorService detector,
             SubscriptionRepository subscriptionRepository,
             SuggestionDecisionRepository decisionRepository,
-            BankConsentRepository consentRepository
+            LunchFlowConnectionRepository lunchFlowConnectionRepository
     ) {
         this.detector = detector;
         this.subscriptionRepository = subscriptionRepository;
         this.decisionRepository = decisionRepository;
-        this.consentRepository = consentRepository;
+        this.lunchFlowConnectionRepository = lunchFlowConnectionRepository;
     }
 
     @GetMapping("/app/suggestions")
@@ -47,10 +47,9 @@ public class SuggestionsController {
         if (flash != null) session.removeAttribute(SESSION_FLASH);
         model.addAttribute("flashMsg", flash);
 
-        boolean bankConnected = consentRepository.findTopByUserEmailOrderByCreatedAtDesc(email).isPresent();
+        boolean bankConnected = lunchFlowConnectionRepository.existsByUserEmail(email);
         model.addAttribute("bankConnected", bankConnected);
 
-        // enkle defaults til JSP-en din
         model.addAttribute("importState", "IDLE");
         model.addAttribute("importStatus", bankConnected ? "Bank connected" : "Bank not connected");
 
@@ -130,11 +129,12 @@ public class SuggestionsController {
             getHiddenKeys(session).remove(key);
         }
 
-        if (missing > 0) {
-            session.setAttribute(SESSION_FLASH, "Godkjent " + added + " forslag. (" + missing + " ble ikke funnet)");
-        } else {
-            session.setAttribute(SESSION_FLASH, "Godkjent " + added + " forslag.");
-        }
+        session.setAttribute(
+                SESSION_FLASH,
+                missing > 0
+                        ? "Godkjent " + added + " forslag. (" + missing + " ble ikke funnet)"
+                        : "Godkjent " + added + " forslag."
+        );
 
         return "redirect:/app/subscriptions";
     }
@@ -196,8 +196,7 @@ public class SuggestionsController {
             if (s.getCancelUrl() != null && !s.getCancelUrl().isBlank()) {
                 sub.setCancelUrl(s.getCancelUrl());
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
 
         subscriptionRepository.save(sub);
     }
