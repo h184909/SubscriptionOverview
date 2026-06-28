@@ -2,7 +2,7 @@ package no.hvl.subscriptionapp.web;
 
 import jakarta.servlet.http.HttpSession;
 import no.hvl.subscriptionapp.domain.Subscription;
-import no.hvl.subscriptionapp.repository.BankConsentRepository;
+import no.hvl.subscriptionapp.repository.LunchFlowConnectionRepository;
 import no.hvl.subscriptionapp.repository.SubscriptionRepository;
 import no.hvl.subscriptionapp.service.ExchangeRateService;
 import org.springframework.stereotype.Controller;
@@ -18,16 +18,16 @@ import java.util.List;
 public class AppController {
 
     private final SubscriptionRepository subscriptionRepo;
-    private final BankConsentRepository consentRepo;
+    private final LunchFlowConnectionRepository lunchFlowConnectionRepo;
     private final ExchangeRateService fx;
 
     public AppController(
             SubscriptionRepository subscriptionRepo,
-            BankConsentRepository consentRepo,
+            LunchFlowConnectionRepository lunchFlowConnectionRepo,
             ExchangeRateService fx
     ) {
         this.subscriptionRepo = subscriptionRepo;
-        this.consentRepo = consentRepo;
+        this.lunchFlowConnectionRepo = lunchFlowConnectionRepo;
         this.fx = fx;
     }
 
@@ -38,13 +38,11 @@ public class AppController {
 
         model.addAttribute("email", email);
 
-        boolean bankConnected = consentRepo.findTopByUserEmailOrderByCreatedAtDesc(email).isPresent();
+        boolean bankConnected = lunchFlowConnectionRepo.existsByUserEmail(email);
         model.addAttribute("bankConnected", bankConnected);
 
-        // Hent alle, men dashboard skal vise kun aktive
         List<Subscription> allSubs = subscriptionRepo.findByUserEmailOrderByCreatedAtDesc(email);
 
-        // ✅ Rull frem nextChargeDate hvis den er i dag eller tidligere (kun aktive)
         LocalDate today = LocalDate.now();
         boolean changed = false;
 
@@ -53,7 +51,7 @@ public class AppController {
             if (s.getNextChargeDate() == null) continue;
 
             LocalDate next = s.getNextChargeDate();
-            if (!next.isAfter(today)) { // <= today
+            if (!next.isAfter(today)) {
                 LocalDate rolled = rollForward(next, s.getInterval(), today);
                 if (!rolled.equals(next)) {
                     s.setNextChargeDate(rolled);
@@ -64,25 +62,22 @@ public class AppController {
 
         if (changed) subscriptionRepo.saveAll(allSubs);
 
-        // ✅ Kun aktive på dashboard
         List<Subscription> activeSubs = allSubs.stream()
                 .filter(Subscription::isActive)
                 .toList();
 
         model.addAttribute("subs", activeSubs);
 
-        // ✅ Due soon (kun aktive): inkluderende [today, today+7]
         LocalDate end = today.plusDays(7);
         List<Subscription> dueSoon = activeSubs.stream()
                 .filter(s -> s.getNextChargeDate() != null)
-                .filter(s -> !s.getNextChargeDate().isBefore(today)) // >= today
-                .filter(s -> !s.getNextChargeDate().isAfter(end))    // <= end
+                .filter(s -> !s.getNextChargeDate().isBefore(today))
+                .filter(s -> !s.getNextChargeDate().isAfter(end))
                 .sorted(Comparator.comparing(Subscription::getNextChargeDate))
                 .toList();
 
         model.addAttribute("dueSoon", dueSoon);
 
-        // ✅ Total per måned i NOK (kun aktive)
         BigDecimal totalMonthlyNok = BigDecimal.ZERO;
         for (Subscription s : activeSubs) {
             BigDecimal monthly = s.getMonthlyCost();
@@ -91,8 +86,8 @@ public class AppController {
             BigDecimal inNok = fx.convertToNok(monthly, s.getCurrency());
             if (inNok != null) totalMonthlyNok = totalMonthlyNok.add(inNok);
         }
-        model.addAttribute("totalMonthlyNok", totalMonthlyNok);
 
+        model.addAttribute("totalMonthlyNok", totalMonthlyNok);
         model.addAttribute("showDevLinks", false);
 
         return "app";

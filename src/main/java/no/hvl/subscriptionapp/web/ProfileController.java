@@ -1,7 +1,7 @@
 package no.hvl.subscriptionapp.web;
 
 import jakarta.servlet.http.HttpSession;
-import no.hvl.subscriptionapp.domain.BankConsent;
+import no.hvl.subscriptionapp.domain.LunchFlowConnection;
 import no.hvl.subscriptionapp.domain.Person;
 import no.hvl.subscriptionapp.repository.*;
 import no.hvl.subscriptionapp.service.PasswordService;
@@ -18,6 +18,7 @@ public class ProfileController {
     private final BankTransactionRepository txRepo;
     private final BankConsentRepository consentRepo;
     private final SuggestionDecisionRepository decisionRepo;
+    private final LunchFlowConnectionRepository lunchFlowConnectionRepo;
 
     public ProfileController(
             PersonRepository personRepo,
@@ -25,7 +26,8 @@ public class ProfileController {
             SubscriptionRepository subscriptionRepo,
             BankTransactionRepository txRepo,
             BankConsentRepository consentRepo,
-            SuggestionDecisionRepository decisionRepo
+            SuggestionDecisionRepository decisionRepo,
+            LunchFlowConnectionRepository lunchFlowConnectionRepo
     ) {
         this.personRepo = personRepo;
         this.passwordService = passwordService;
@@ -33,6 +35,7 @@ public class ProfileController {
         this.txRepo = txRepo;
         this.consentRepo = consentRepo;
         this.decisionRepo = decisionRepo;
+        this.lunchFlowConnectionRepo = lunchFlowConnectionRepo;
     }
 
     @GetMapping("/app/profile")
@@ -46,9 +49,11 @@ public class ProfileController {
         model.addAttribute("email", p.getEmail());
         model.addAttribute("preferredLanguage", p.getPreferredLanguage());
 
-        BankConsent consent = consentRepo.findTopByUserEmailOrderByCreatedAtDesc(email).orElse(null);
-        model.addAttribute("bankConsent", consent);
-        model.addAttribute("bankConnected", consent != null);
+        LunchFlowConnection connection =
+                lunchFlowConnectionRepo.findFirstByUserEmailOrderByUpdatedAtDesc(email).orElse(null);
+
+        model.addAttribute("bankConnected", connection != null);
+        model.addAttribute("bankConsent", connection);
 
         return "profile";
     }
@@ -103,6 +108,7 @@ public class ProfileController {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
         if (email == null) return "redirect:/login";
 
+        lunchFlowConnectionRepo.deleteByUserEmail(email);
         consentRepo.deleteByUserEmail(email);
 
         session.setAttribute("flashMsg", "Bank disconnected.");
@@ -141,6 +147,7 @@ public class ProfileController {
         try { subscriptionRepo.deleteByUserEmail(email); } catch (Exception ignored) {}
         try { txRepo.deleteByUserEmail(email); } catch (Exception ignored) {}
         try { consentRepo.deleteByUserEmail(email); } catch (Exception ignored) {}
+        try { lunchFlowConnectionRepo.deleteByUserEmail(email); } catch (Exception ignored) {}
 
         personRepo.deleteById(email);
         session.invalidate();

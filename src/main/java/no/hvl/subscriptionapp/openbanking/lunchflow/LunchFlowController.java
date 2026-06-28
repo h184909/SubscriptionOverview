@@ -3,7 +3,9 @@ package no.hvl.subscriptionapp.openbanking.lunchflow;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpSession;
 import no.hvl.subscriptionapp.domain.BankTransaction;
+import no.hvl.subscriptionapp.domain.LunchFlowConnection;
 import no.hvl.subscriptionapp.repository.BankTransactionRepository;
+import no.hvl.subscriptionapp.repository.LunchFlowConnectionRepository;
 import no.hvl.subscriptionapp.web.LoginController;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,15 +27,18 @@ public class LunchFlowController {
     private final LunchFlowProperties props;
     private final LunchFlowHttp lunchFlow;
     private final BankTransactionRepository txRepo;
+    private final LunchFlowConnectionRepository connectionRepo;
 
     public LunchFlowController(
             LunchFlowProperties props,
             LunchFlowHttp lunchFlow,
-            BankTransactionRepository txRepo
+            BankTransactionRepository txRepo,
+            LunchFlowConnectionRepository connectionRepo
     ) {
         this.props = props;
         this.lunchFlow = lunchFlow;
         this.txRepo = txRepo;
+        this.connectionRepo = connectionRepo;
     }
 
     @GetMapping("/lunchflow/connect")
@@ -94,6 +99,24 @@ public class LunchFlowController {
 
         try {
             LunchFlowDtos.TokenResponse token = lunchFlow.exchangeCode(tokenRequest);
+
+            connectionRepo.findFirstByUserEmailOrderByUpdatedAtDesc(email)
+                    .ifPresentOrElse(
+                            existing -> {
+                                existing.updateTokens(
+                                        token.user_id(),
+                                        token.access_token(),
+                                        token.refresh_token()
+                                );
+                                connectionRepo.save(existing);
+                            },
+                            () -> connectionRepo.save(new LunchFlowConnection(
+                                    email,
+                                    token.user_id(),
+                                    token.access_token(),
+                                    token.refresh_token()
+                            ))
+                    );
 
             session.setAttribute("lunchflow_access_token", token.access_token());
             session.setAttribute("lunchflow_refresh_token", token.refresh_token());
