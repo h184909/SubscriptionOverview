@@ -78,7 +78,32 @@ public class LunchFlowController {
                 return "redirect:/app";
             }
 
-            ImportResult result = importTransactions(email, connection.getAccessToken());
+            String accessToken = connection.getAccessToken();
+
+            ImportResult result;
+            try {
+                result = importTransactions(email, accessToken);
+            } catch (Exception firstError) {
+                LunchFlowDtos.TokenRequest refreshRequest = new LunchFlowDtos.TokenRequest(
+                        "refresh_token",
+                        null,
+                        props.getRedirectUri(),
+                        props.getClientId(),
+                        props.getClientSecret(),
+                        connection.getRefreshToken()
+                );
+
+                LunchFlowDtos.TokenResponse refreshed = lunchFlow.exchangeCode(refreshRequest);
+
+                connection.updateTokens(
+                        refreshed.user_id(),
+                        refreshed.access_token(),
+                        refreshed.refresh_token()
+                );
+                connectionRepo.save(connection);
+
+                result = importTransactions(email, refreshed.access_token());
+            }
 
             session.setAttribute(
                     SESSION_FLASH,

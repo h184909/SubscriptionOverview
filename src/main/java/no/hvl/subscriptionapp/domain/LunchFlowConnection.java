@@ -57,7 +57,11 @@ public class LunchFlowConnection {
     public void updateTokens(String lunchflowUserId, String accessToken, String refreshToken) {
         this.lunchflowUserId = lunchflowUserId;
         this.accessToken = accessToken;
-        this.refreshToken = refreshToken;
+
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            this.refreshToken = refreshToken;
+        }
+
         this.updatedAt = OffsetDateTime.now();
     }
 }
