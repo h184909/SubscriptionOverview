@@ -61,7 +61,7 @@
           <div class="pill ok">✅ <fmt:message key="dash.bankConnected"/></div>
 
           <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-            <form method="post" action="<c:url value='/app/import-again'/>" style="margin:0;">
+            <form method="post" action="<c:url value='/lunchflow/sync'/>" style="margin:0;">
               <button class="btn btn-primary" type="submit">
                 <fmt:message key="dash.bankSync"/>
               </button>

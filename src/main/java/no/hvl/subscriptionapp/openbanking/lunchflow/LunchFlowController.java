@@ -11,6 +11,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.bind.annotation.PostMapping;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -60,6 +61,39 @@ public class LunchFlowController {
                 .toUriString();
 
         return "redirect:" + url;
+    }
+
+    @PostMapping("/lunchflow/sync")
+    public String sync(HttpSession session) {
+        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
+        if (email == null) return "redirect:/login";
+
+        try {
+            LunchFlowConnection connection = connectionRepo
+                    .findFirstByUserEmailOrderByUpdatedAtDesc(email)
+                    .orElse(null);
+
+            if (connection == null) {
+                session.setAttribute(SESSION_FLASH, "No bank connection found. Connect your bank first.");
+                return "redirect:/app";
+            }
+
+            ImportResult result = importTransactions(email, connection.getAccessToken());
+
+            session.setAttribute(
+                    SESSION_FLASH,
+                    "Sync complete. Found " + result.accountsFound +
+                            " account(s), " + result.transactionsFound +
+                            " transaction(s), imported " + result.transactionsImported + " new."
+            );
+
+            return "redirect:/app/suggestions";
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            session.setAttribute(SESSION_FLASH, "Lunch Flow sync failed: " + e.getMessage());
+            return "redirect:/app";
+        }
     }
 
     @GetMapping("/lunchflow/callback")
