@@ -61,12 +61,6 @@ public class AppController {
                         .format(dateTimeFormatter)
                         : null
         );
-        model.addAttribute(
-                "bankLastSynced",
-                connection != null && connection.getLastSyncedAt() != null
-                        ? connection.getLastSyncedAt().toLocalDateTime().format(fmt)
-                        : null
-        );
 
         List<Subscription> allSubs = subscriptionRepo.findByUserEmailOrderByCreatedAtDesc(email);
 
