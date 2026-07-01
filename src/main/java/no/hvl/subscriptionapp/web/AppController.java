@@ -10,6 +10,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -48,7 +50,17 @@ public class AppController {
         model.addAttribute("bankAccountCount", connection != null ? connection.getAccountCount() : null);
         model.addAttribute("bankAccountNames", connection != null ? connection.getAccountNames() : null);
         model.addAttribute("bankLastSyncedAt", connection != null ? connection.getLastSyncedAt() : null);
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        ZoneId userZone = ZoneId.of("Europe/Oslo");
+
+        model.addAttribute(
+                "bankLastSynced",
+                connection != null && connection.getLastSyncedAt() != null
+                        ? connection.getLastSyncedAt()
+                        .atZoneSameInstant(userZone)
+                        .format(dateTimeFormatter)
+                        : null
+        );
         model.addAttribute(
                 "bankLastSynced",
                 connection != null && connection.getLastSyncedAt() != null
