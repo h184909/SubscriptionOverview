@@ -121,7 +121,7 @@ public class LoginController {
         }
 
         try {
-            lunchFlowSyncService.syncIfDue(person.getEmail(), Duration.ZERO);
+            lunchFlowSyncService.syncIfDue(person.getEmail(), Duration.ofHours(1));
         } catch (Exception e) {
             e.printStackTrace();
             session.setAttribute(

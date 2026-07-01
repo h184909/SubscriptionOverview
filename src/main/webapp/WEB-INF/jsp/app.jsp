@@ -60,6 +60,25 @@
         <c:when test="${bankConnected}">
           <div class="pill ok">✅ <fmt:message key="dash.bankConnected"/></div>
 
+          <div class="muted" style="margin-top:10px;">
+            <b><c:out value="${empty bankInstitutionName ? 'Lunch Flow' : bankInstitutionName}"/></b>
+          </div>
+
+          <c:if test="${not empty bankAccountCount}">
+            <div class="muted" style="margin-top:6px;">
+              <c:out value="${bankAccountCount}"/> account(s)
+              <c:if test="${not empty bankAccountNames}">
+                · <c:out value="${bankAccountNames}"/>
+              </c:if>
+            </div>
+          </c:if>
+
+          <c:if test="${not empty bankLastSyncedAt}">
+            <div class="muted" style="margin-top:6px;">
+              Last synced: <b><c:out value="${bankLastSyncedAt}"/></b>
+            </div>
+          </c:if>
+
           <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
             <form method="post" action="<c:url value='/lunchflow/sync'/>" style="margin:0;">
               <button class="btn btn-primary" type="submit">

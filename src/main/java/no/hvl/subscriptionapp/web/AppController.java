@@ -1,6 +1,7 @@
 package no.hvl.subscriptionapp.web;
 
 import jakarta.servlet.http.HttpSession;
+import no.hvl.subscriptionapp.domain.LunchFlowConnection;
 import no.hvl.subscriptionapp.domain.Subscription;
 import no.hvl.subscriptionapp.repository.LunchFlowConnectionRepository;
 import no.hvl.subscriptionapp.repository.SubscriptionRepository;
@@ -38,8 +39,14 @@ public class AppController {
 
         model.addAttribute("email", email);
 
-        boolean bankConnected = lunchFlowConnectionRepo.existsByUserEmail(email);
-        model.addAttribute("bankConnected", bankConnected);
+        LunchFlowConnection connection =
+                lunchFlowConnectionRepo.findFirstByUserEmailOrderByUpdatedAtDesc(email).orElse(null);
+
+        model.addAttribute("bankConnected", connection != null);
+        model.addAttribute("bankInstitutionName", connection != null ? connection.getInstitutionName() : null);
+        model.addAttribute("bankAccountCount", connection != null ? connection.getAccountCount() : null);
+        model.addAttribute("bankAccountNames", connection != null ? connection.getAccountNames() : null);
+        model.addAttribute("bankLastSyncedAt", connection != null ? connection.getLastSyncedAt() : null);
 
         List<Subscription> allSubs = subscriptionRepo.findByUserEmailOrderByCreatedAtDesc(email);
 

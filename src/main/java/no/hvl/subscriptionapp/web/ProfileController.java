@@ -53,8 +53,13 @@ public class ProfileController {
                 lunchFlowConnectionRepo.findFirstByUserEmailOrderByUpdatedAtDesc(email).orElse(null);
 
         model.addAttribute("bankConnected", connection != null);
-        model.addAttribute("bankProviderName", connection != null ? "Lunch Flow" : null);
+        model.addAttribute("bankProviderName", connection != null && connection.getInstitutionName() != null
+                ? connection.getInstitutionName()
+                : "Lunch Flow");
+        model.addAttribute("bankAccountCount", connection != null ? connection.getAccountCount() : null);
+        model.addAttribute("bankAccountNames", connection != null ? connection.getAccountNames() : null);
         model.addAttribute("bankConnectedAt", connection != null ? connection.getConnectedAt() : null);
+        model.addAttribute("bankLastSyncedAt", connection != null ? connection.getLastSyncedAt() : null);
 
         return "profile";
     }
