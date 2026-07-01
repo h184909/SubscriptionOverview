@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import no.hvl.subscriptionapp.domain.Person;
 import no.hvl.subscriptionapp.repository.PersonRepository;
+import no.hvl.subscriptionapp.service.LunchFlowSyncService;
 import no.hvl.subscriptionapp.service.PasswordService;
 import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Controller;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 
+import java.time.Duration;
 import java.util.Locale;
 
 @Controller
@@ -25,15 +27,18 @@ public class LoginController {
     private final PersonRepository personRepository;
     private final PasswordService passwordService;
     private final MessageSource messageSource;
+    private final LunchFlowSyncService lunchFlowSyncService;
 
     public LoginController(
             PersonRepository personRepository,
             PasswordService passwordService,
-            MessageSource messageSource
+            MessageSource messageSource,
+            LunchFlowSyncService lunchFlowSyncService
     ) {
         this.personRepository = personRepository;
         this.passwordService = passwordService;
         this.messageSource = messageSource;
+        this.lunchFlowSyncService = lunchFlowSyncService;
     }
 
     @GetMapping("/login")
@@ -113,6 +118,16 @@ public class LoginController {
                     : Locale.forLanguageTag("en-US");
 
             session.setAttribute(SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME, userLocale);
+        }
+
+        try {
+            lunchFlowSyncService.syncIfDue(person.getEmail(), Duration.ZERO);
+        } catch (Exception e) {
+            e.printStackTrace();
+            session.setAttribute(
+                    "flashMsg",
+                    "Automatic bank sync failed, but you are logged in. You can sync manually from the dashboard."
+            );
         }
 
         return "redirect:/app";
