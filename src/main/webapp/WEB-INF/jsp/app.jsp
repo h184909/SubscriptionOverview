@@ -75,7 +75,7 @@
 
           <c:if test="${not empty bankLastSyncedAt}">
             <div class="muted" style="margin-top:6px;">
-              Last synced: <b><c:out value="${bankLastSyncedAt}"/></b>
+              Last synced: <b><c:out value="${bankLastSynced}"/></b>
             </div>
           </c:if>
 
