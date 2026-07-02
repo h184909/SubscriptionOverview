@@ -1,6 +1,7 @@
 package no.hvl.subscriptionapp.web;
 
 import jakarta.servlet.http.HttpSession;
+import jakarta.transaction.Transactional;
 import no.hvl.subscriptionapp.domain.LunchFlowConnection;
 import no.hvl.subscriptionapp.domain.Person;
 import no.hvl.subscriptionapp.repository.*;
@@ -109,6 +110,7 @@ public class ProfileController {
         return profile(session, model);
     }
 
+    @Transactional
     @PostMapping("/app/profile/disconnect-bank")
     public String disconnectBank(HttpSession session) {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
@@ -121,6 +123,7 @@ public class ProfileController {
         return "redirect:/app/profile";
     }
 
+    @Transactional
     @PostMapping("/app/profile/delete")
     public String deleteAccount(
             HttpSession session,
