@@ -91,6 +91,15 @@ public class LunchFlowSyncService {
             return new ImportResult(0, 0, 0);
         }
 
+        String fromDate = null;
+
+        if (connection.getLastSyncedAt() != null) {
+            fromDate = connection.getLastSyncedAt()
+                    .minusDays(7)
+                    .toLocalDate()
+                    .toString();
+        }
+
         int accountsFound = accountsRes.accounts().size();
         int transactionsFound = 0;
         int transactionsImported = 0;
@@ -110,7 +119,7 @@ public class LunchFlowSyncService {
             if (account.id() == null || account.id().isBlank()) continue;
 
             LunchFlowDtos.TransactionsResponse txRes =
-                    lunchFlow.getTransactions(accessToken, account.id());
+                    lunchFlow.getTransactions(accessToken, account.id(), fromDate);
 
             if (txRes == null || txRes.transactions() == null || txRes.transactions().isEmpty()) continue;
 

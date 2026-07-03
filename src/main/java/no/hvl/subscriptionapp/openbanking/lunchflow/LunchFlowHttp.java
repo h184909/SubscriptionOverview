@@ -54,14 +54,23 @@ public class LunchFlowHttp {
                 .body(LunchFlowDtos.AccountsResponse.class);
     }
 
-    public LunchFlowDtos.TransactionsResponse getTransactions(String accessToken, String accountId) {
-        System.out.println("LunchFlow GET " + props.getBaseUrl() + "/accounts/" + accountId + "/transactions");
-
+    public LunchFlowDtos.TransactionsResponse getTransactions(
+            String accessToken,
+            String accountId,
+            String fromDate
+    ) {
         return apiClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/accounts/{accountId}/transactions")
-                        .queryParam("include_pending", "true")
-                        .build(accountId))
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder
+                            .path("/accounts/{accountId}/transactions")
+                            .queryParam("include_pending", "true");
+
+                    if (fromDate != null && !fromDate.isBlank()) {
+                        builder.queryParam("from", fromDate);
+                    }
+
+                    return builder.build(accountId);
+                })
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .retrieve()
                 .body(LunchFlowDtos.TransactionsResponse.class);
