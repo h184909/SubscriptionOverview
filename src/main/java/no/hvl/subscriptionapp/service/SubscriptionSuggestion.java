@@ -17,11 +17,10 @@ public class SubscriptionSuggestion {
     private final LocalDate nextExpectedDate;
     private final int occurrences;
     private final int confidence;
-
-    // NEW:
     private final boolean knownProvider;
     private final String providerKey;
     private final String cancelUrl;
+    private final String category;
 
     public SubscriptionSuggestion(
             String key,
@@ -35,7 +34,8 @@ public class SubscriptionSuggestion {
             int confidence,
             boolean knownProvider,
             String providerKey,
-            String cancelUrl
+            String cancelUrl,
+            String category
     ) {
         this.key = key;
         this.name = name;
@@ -49,6 +49,7 @@ public class SubscriptionSuggestion {
         this.knownProvider = knownProvider;
         this.providerKey = providerKey;
         this.cancelUrl = cancelUrl;
+        this.category = category;
     }
 
     public String getKey() { return key; }
@@ -60,9 +61,8 @@ public class SubscriptionSuggestion {
     public LocalDate getNextExpectedDate() { return nextExpectedDate; }
     public int getOccurrences() { return occurrences; }
     public int getConfidence() { return confidence; }
-
-    // NEW getters:
     public boolean isKnownProvider() { return knownProvider; }
     public String getProviderKey() { return providerKey; }
     public String getCancelUrl() { return cancelUrl; }
+    public String getCategory() { return category; }
 }

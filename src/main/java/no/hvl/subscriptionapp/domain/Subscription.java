@@ -42,13 +42,14 @@ public class Subscription {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    // ✅ NYTT
     @Column(name = "cancel_url", length = 500)
     private String cancelUrl;
 
-    // ✅ NYTT
     @Column(name = "provider_key", length = 80)
     private String providerKey;
+
+    @Column(name = "category", length = 80)
+    private String category;
 
     protected Subscription() {}
 
@@ -104,11 +105,10 @@ public class Subscription {
     public void setNextChargeDate(LocalDate nextChargeDate) {
         this.nextChargeDate = nextChargeDate;
     }
-
-
-    // ✅ NYTT
     public String getCancelUrl() { return cancelUrl; }
     public String getProviderKey() { return providerKey; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = (category == null || category.isBlank()) ? null : category.trim(); }
 
     public void setActive(boolean active) { this.active = active; }
     public void setCancelUrl(String cancelUrl) { this.cancelUrl = cancelUrl; }

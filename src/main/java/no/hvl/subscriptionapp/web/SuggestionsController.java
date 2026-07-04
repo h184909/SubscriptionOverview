@@ -196,6 +196,9 @@ public class SuggestionsController {
             if (s.getCancelUrl() != null && !s.getCancelUrl().isBlank()) {
                 sub.setCancelUrl(s.getCancelUrl());
             }
+            if (s.getCategory() != null && !s.getCategory().isBlank()) {
+                sub.setCategory(s.getCategory());
+            }
         } catch (Exception ignored) {}
 
         subscriptionRepository.save(sub);

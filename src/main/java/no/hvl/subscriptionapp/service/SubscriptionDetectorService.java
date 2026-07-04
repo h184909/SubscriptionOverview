@@ -144,15 +144,18 @@ public class SubscriptionDetectorService {
             String providerKey;
             String displayName;
             String cancelUrl = null;
+            String category = "Other";
 
             if (known) {
                 providerKey = gKey.substring("prov:".length());
                 var match = KnownMerchants.match(providerKey, rawText(g));
                 displayName = match.map(KnownMerchants.Match::displayName).orElse(prettyName(providerKey));
                 cancelUrl = match.map(KnownMerchants.Match::cancelUrl).orElse(null);
+                category = match.map(KnownMerchants.Match::category).orElse(KnownMerchants.categoryForProvider(providerKey));
             } else {
                 providerKey = norm(gKey);
                 displayName = prettyName(gKey);
+                category = "Other";
             }
 
             // ekstra filter: ukjente grupper må ha litt mer substans
@@ -177,7 +180,8 @@ public class SubscriptionDetectorService {
                     confidence,
                     known,
                     providerKey,
-                    cancelUrl
+                    cancelUrl,
+                    category
             ));
         }
 
