@@ -7,10 +7,6 @@
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="subs.title"/></title>
   <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
-  <c:url var="favIco" value="/favicon.ico"/>
-  <c:url var="fav16" value="/favicon-16.png"/>
-  <c:url var="fav32" value="/favicon-32.png"/>
-  <c:url var="appleTouch" value="/apple-touch-icon.png"/>
 
   <link rel="icon" href="<c:url value='/favicon.ico'/>" />
   <link rel="icon" type="image/png" sizes="32x32" href="<c:url value='/favicon-32.png'/>" />
@@ -35,7 +31,7 @@
       <a href="<c:url value='/app'/>"><fmt:message key="nav.dashboard"/></a>
       <a href="<c:url value='/app/suggestions'/>"><fmt:message key="nav.suggestions"/></a>
       <a href="<c:url value='/app/transactions/import-csv'/>"><fmt:message key="nav.importCsv"/></a>
-      <a href="<c:url value='/app/profile'/>">Profile</a>
+      <a href="<c:url value='/app/profile'/>"><fmt:message key="nav.profile"/></a>
 
       <span class="muted" style="margin:0 6px;">|</span>
 
@@ -74,6 +70,7 @@
           <thead>
           <tr>
             <th><fmt:message key="table.name"/></th>
+            <th>Category</th>
             <th><fmt:message key="table.price"/></th>
             <th><fmt:message key="table.interval"/></th>
             <th><fmt:message key="table.nextCharge"/></th>
@@ -86,7 +83,6 @@
 
           <c:forEach var="s" items="${subs}">
             <tr>
-              <!-- Rename UI -->
               <td>
                 <div style="display:flex; flex-direction:column; gap:8px;">
                   <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
@@ -118,6 +114,28 @@
                     </div>
                   </div>
                 </div>
+              </td>
+
+              <td>
+                <c:choose>
+                  <c:when test="${empty s.category}">
+                    <span class="pill">Other</span>
+                  </c:when>
+                  <c:otherwise>
+                    <span class="pill">
+                      <c:choose>
+                        <c:when test="${s.category == 'Entertainment'}">🎬 </c:when>
+                        <c:when test="${s.category == 'Telecom'}">📱 </c:when>
+                        <c:when test="${s.category == 'Utilities'}">⚡ </c:when>
+                        <c:when test="${s.category == 'Health & Fitness'}">🏋️ </c:when>
+                        <c:when test="${s.category == 'News'}">📰 </c:when>
+                        <c:when test="${s.category == 'Shopping & Food'}">🛒 </c:when>
+                        <c:otherwise>📦 </c:otherwise>
+                      </c:choose>
+                      <c:out value="${s.category}" />
+                    </span>
+                  </c:otherwise>
+                </c:choose>
               </td>
 
               <td><c:out value="${s.amount}" /> <c:out value="${s.currency}" /></td>
@@ -188,7 +206,6 @@
 </div>
 
 <script>
-  // Lukker alle rename-bokser
   function closeAllRename() {
     const boxes = document.querySelectorAll("[id^='renameBox-']");
     boxes.forEach(b => b.style.display = "none");
@@ -221,11 +238,9 @@
     }
   }
 
-  // Klikk utenfor lukker åpne bokser
   document.addEventListener("click", function(e){
     const t = e.target;
     if (!t) return;
-    // Hvis du klikker inni rename box eller på rename-knapp, ikke lukk
     if (t.closest && (t.closest("[id^='renameBox-']") || (t.tagName === "BUTTON" && t.getAttribute("onclick") && t.getAttribute("onclick").includes("openRename")))) {
       return;
     }
