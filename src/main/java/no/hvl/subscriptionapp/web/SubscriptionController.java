@@ -36,7 +36,6 @@ public class SubscriptionController {
 
         List<Subscription> subs = subscriptionRepository.findByUserEmailOrderByCreatedAtDesc(email);
 
-        // ✅ auto-rull neste trekkdato hvis den er i dag eller tidligere
         LocalDate today = LocalDate.now();
         boolean changed = false;
 
@@ -53,11 +52,11 @@ public class SubscriptionController {
                 }
             }
         }
+
         if (changed) subscriptionRepository.saveAll(subs);
 
         model.addAttribute("subs", subs);
 
-        // ✅ cancel-links på subscriptions
         Map<String, String> cancelLinks = new HashMap<>();
         for (Subscription s : subs) {
             String key = (s.getProviderKey() != null && !s.getProviderKey().isBlank())
@@ -70,6 +69,37 @@ public class SubscriptionController {
         model.addAttribute("cancelLinks", cancelLinks);
 
         return "subscriptions";
+    }
+
+    @PostMapping("/app/subscriptions/category")
+    public String updateCategory(
+            HttpSession session,
+            @RequestParam("id") String id,
+            @RequestParam(value = "category", required = false) String category
+    ) {
+        Subscription sub = findOwnedSubscription(session, id);
+        if (sub == null) return "redirect:/app/subscriptions";
+
+        String cleaned = normalizeCategory(category);
+        sub.setCategory(cleaned);
+        subscriptionRepository.save(sub);
+
+        return "redirect:/app/subscriptions";
+    }
+
+    private String normalizeCategory(String category) {
+        if (category == null || category.isBlank()) return null;
+
+        return switch (category.trim()) {
+            case "Entertainment" -> "Entertainment";
+            case "Telecom" -> "Telecom";
+            case "Utilities" -> "Utilities";
+            case "Health & Fitness" -> "Health & Fitness";
+            case "News" -> "News";
+            case "Shopping & Food" -> "Shopping & Food";
+            case "Other" -> "Other";
+            default -> null;
+        };
     }
 
     private LocalDate rollForward(LocalDate next, String interval, LocalDate today) {
@@ -143,16 +173,8 @@ public class SubscriptionController {
         String newName = name.trim();
         if (newName.length() > 80) newName = newName.substring(0, 80);
 
-        UUID uuid;
-        try {
-            uuid = UUID.fromString(id);
-        } catch (Exception e) {
-            return "redirect:/app/subscriptions";
-        }
-
-        Subscription sub = subscriptionRepository.findById(uuid).orElse(null);
+        Subscription sub = findOwnedSubscription(session, id);
         if (sub == null) return "redirect:/app/subscriptions";
-        if (!email.equalsIgnoreCase(sub.getUserEmail())) return "redirect:/app/subscriptions";
 
         sub.setName(newName);
         subscriptionRepository.save(sub);
@@ -180,7 +202,6 @@ public class SubscriptionController {
         return "redirect:/app/subscriptions";
     }
 
-    // ✅ Robust: ved delete -> un-block alle suggestionKeys for samme providerKey (prefix)
     @PostMapping("/app/subscriptions/delete")
     public String delete(HttpSession session, @RequestParam("id") String id) {
         Subscription sub = findOwnedSubscription(session, id);
@@ -192,7 +213,6 @@ public class SubscriptionController {
         if (!providerKey.isBlank()) {
             String prefix = providerKey + "|";
 
-            // Slett alle ACCEPTED-beslutninger som matcher providerKey
             List<SuggestionDecision> decisions = decisionRepository.findByUserEmail(email);
             for (SuggestionDecision d : decisions) {
                 String sk = d.getSuggestionKey();

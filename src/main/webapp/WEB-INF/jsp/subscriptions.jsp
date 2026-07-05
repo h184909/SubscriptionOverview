@@ -70,7 +70,7 @@
           <thead>
           <tr>
             <th><fmt:message key="table.name"/></th>
-            <th style="width:170px;">Category</th>
+            <th style="width:190px;">Category</th>
             <th><fmt:message key="table.price"/></th>
             <th><fmt:message key="table.interval"/></th>
             <th><fmt:message key="table.nextCharge"/></th>
@@ -87,10 +87,8 @@
                 <div style="display:flex; flex-direction:column; gap:8px;">
                   <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <b><c:out value="${s.name}" /></b>
-                    <button type="button"
-                            class="btn"
-                            onclick="openRename('${s.id}')">
-                      ✏ <fmt:message key="subs.rename"/>
+                    <button type="button" class="btn" onclick="openRename('${s.id}')">
+                      Rename
                     </button>
                   </div>
 
@@ -117,26 +115,55 @@
               </td>
 
               <td>
-                <c:choose>
-                  <c:when test="${empty s.category || s.category == 'Other'}">
-                    -
-                  </c:when>
-                  <c:otherwise>
-                    <span class="pill"
-                          style="white-space:nowrap; min-width:145px; display:inline-flex; justify-content:center;">
-                      <c:choose>
-                        <c:when test="${s.category == 'Entertainment'}">🎬 </c:when>
-                        <c:when test="${s.category == 'Telecom'}">📱 </c:when>
-                        <c:when test="${s.category == 'Utilities'}">🛠️ </c:when>
-                        <c:when test="${s.category == 'Health & Fitness'}">💪 </c:when>
-                        <c:when test="${s.category == 'News'}">📰 </c:when>
-                        <c:when test="${s.category == 'Shopping & Food'}">🍔 </c:when>
-                        <c:otherwise>📦 </c:otherwise>
-                      </c:choose>
-                      <c:out value="${s.category}" />
-                    </span>
-                  </c:otherwise>
-                </c:choose>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <button type="button"
+                          class="btn"
+                          onclick="openCategory('${s.id}')"
+                          style="padding:0; border:0; background:transparent; text-align:left;">
+                    <c:choose>
+                      <c:when test="${empty s.category || s.category == 'Other'}">
+                        <span class="muted">No category</span>
+                      </c:when>
+                      <c:otherwise>
+                        <span class="pill"
+                              style="white-space:nowrap; min-width:145px; display:inline-flex; justify-content:center;">
+                          <c:choose>
+                            <c:when test="${s.category == 'Entertainment'}">🎬 </c:when>
+                            <c:when test="${s.category == 'Telecom'}">📱 </c:when>
+                            <c:when test="${s.category == 'Utilities'}">🛠️ </c:when>
+                            <c:when test="${s.category == 'Health & Fitness'}">💪 </c:when>
+                            <c:when test="${s.category == 'News'}">📰 </c:when>
+                            <c:when test="${s.category == 'Shopping & Food'}">🍔 </c:when>
+                            <c:otherwise>📦 </c:otherwise>
+                          </c:choose>
+                          <c:out value="${s.category}" />
+                        </span>
+                      </c:otherwise>
+                    </c:choose>
+                  </button>
+
+                  <div id="categoryBox-${s.id}" style="display:none;">
+                    <form method="post"
+                          action="${pageContext.request.contextPath}/app/subscriptions/category"
+                          style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:0;">
+                      <input type="hidden" name="id" value="${s.id}" />
+
+                      <select name="category" onkeydown="categoryKeydown(event, '${s.id}')">
+                        <option value="" <c:if test="${empty s.category}">selected</c:if>>No category</option>
+                        <option value="Entertainment" <c:if test="${s.category == 'Entertainment'}">selected</c:if>>Entertainment</option>
+                        <option value="Utilities" <c:if test="${s.category == 'Utilities'}">selected</c:if>>Utilities</option>
+                        <option value="Telecom" <c:if test="${s.category == 'Telecom'}">selected</c:if>>Telecom</option>
+                        <option value="Health & Fitness" <c:if test="${s.category == 'Health & Fitness'}">selected</c:if>>Health & Fitness</option>
+                        <option value="News" <c:if test="${s.category == 'News'}">selected</c:if>>News</option>
+                        <option value="Shopping & Food" <c:if test="${s.category == 'Shopping & Food'}">selected</c:if>>Shopping & Food</option>
+                        <option value="Other" <c:if test="${s.category == 'Other'}">selected</c:if>>Other</option>
+                      </select>
+
+                      <button type="submit" class="btn btn-primary"><fmt:message key="common.save"/></button>
+                      <button type="button" class="btn" onclick="closeCategory('${s.id}')"><fmt:message key="common.cancel"/></button>
+                    </form>
+                  </div>
+                </div>
               </td>
 
               <td><c:out value="${s.amount}" /> <c:out value="${s.currency}" /></td>
@@ -219,8 +246,15 @@
     boxes.forEach(b => b.style.display = "none");
   }
 
+  function closeAllCategory() {
+    const boxes = document.querySelectorAll("[id^='categoryBox-']");
+    boxes.forEach(b => b.style.display = "none");
+  }
+
   function openRename(id) {
     closeAllRename();
+    closeAllCategory();
+
     const box = document.getElementById("renameBox-" + id);
     if (!box) return;
     box.style.display = "block";
@@ -238,6 +272,26 @@
     box.style.display = "none";
   }
 
+  function openCategory(id) {
+    closeAllCategory();
+    closeAllRename();
+
+    const box = document.getElementById("categoryBox-" + id);
+    if (!box) return;
+    box.style.display = "block";
+
+    const select = box.querySelector("select[name='category']");
+    if (select) {
+      select.focus();
+    }
+  }
+
+  function closeCategory(id) {
+    const box = document.getElementById("categoryBox-" + id);
+    if (!box) return;
+    box.style.display = "none";
+  }
+
   function renameKeydown(e, id) {
     if (!e) return;
     if (e.key === "Escape") {
@@ -246,13 +300,31 @@
     }
   }
 
+  function categoryKeydown(e, id) {
+    if (!e) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeCategory(id);
+    }
+  }
+
   document.addEventListener("click", function(e){
     const t = e.target;
     if (!t) return;
-    if (t.closest && (t.closest("[id^='renameBox-']") || (t.tagName === "BUTTON" && t.getAttribute("onclick") && t.getAttribute("onclick").includes("openRename")))) {
+
+    if (t.closest && (
+            t.closest("[id^='renameBox-']") ||
+            t.closest("[id^='categoryBox-']") ||
+            (t.tagName === "BUTTON" && t.getAttribute("onclick") && (
+                    t.getAttribute("onclick").includes("openRename") ||
+                    t.getAttribute("onclick").includes("openCategory")
+            ))
+    )) {
       return;
     }
+
     closeAllRename();
+    closeAllCategory();
   });
 </script>
 
