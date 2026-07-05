@@ -70,7 +70,7 @@
           <thead>
           <tr>
             <th><fmt:message key="table.name"/></th>
-            <th>Category</th>
+            <th style="width:170px;">Category</th>
             <th><fmt:message key="table.price"/></th>
             <th><fmt:message key="table.interval"/></th>
             <th><fmt:message key="table.nextCharge"/></th>
@@ -90,7 +90,7 @@
                     <button type="button"
                             class="btn"
                             onclick="openRename('${s.id}')">
-                      <fmt:message key="subs.rename"/>
+                      ✏ <fmt:message key="subs.rename"/>
                     </button>
                   </div>
 
@@ -118,18 +118,19 @@
 
               <td>
                 <c:choose>
-                  <c:when test="${empty s.category}">
-                    <span class="pill">Other</span>
+                  <c:when test="${empty s.category || s.category == 'Other'}">
+                    -
                   </c:when>
                   <c:otherwise>
-                    <span class="pill">
+                    <span class="pill"
+                          style="white-space:nowrap; min-width:145px; display:inline-flex; justify-content:center;">
                       <c:choose>
                         <c:when test="${s.category == 'Entertainment'}">🎬 </c:when>
                         <c:when test="${s.category == 'Telecom'}">📱 </c:when>
-                        <c:when test="${s.category == 'Utilities'}">⚡ </c:when>
-                        <c:when test="${s.category == 'Health & Fitness'}">🏋️ </c:when>
+                        <c:when test="${s.category == 'Utilities'}">🛠️ </c:when>
+                        <c:when test="${s.category == 'Health & Fitness'}">💪 </c:when>
                         <c:when test="${s.category == 'News'}">📰 </c:when>
-                        <c:when test="${s.category == 'Shopping & Food'}">🛒 </c:when>
+                        <c:when test="${s.category == 'Shopping & Food'}">🍔 </c:when>
                         <c:otherwise>📦 </c:otherwise>
                       </c:choose>
                       <c:out value="${s.category}" />
@@ -140,6 +141,7 @@
 
               <td><c:out value="${s.amount}" /> <c:out value="${s.currency}" /></td>
               <td><c:out value="${s.interval}" /></td>
+
               <td>
                 <c:choose>
                   <c:when test="${empty s.nextChargeDate}">-</c:when>
@@ -149,8 +151,12 @@
 
               <td>
                 <c:choose>
-                  <c:when test="${s.active}"><span class="pill ok"><fmt:message key="subs.active"/></span></c:when>
-                  <c:otherwise><span class="pill warn"><fmt:message key="subs.inactive"/></span></c:otherwise>
+                  <c:when test="${s.active}">
+                    <span class="pill ok"><fmt:message key="subs.active"/></span>
+                  </c:when>
+                  <c:otherwise>
+                    <span class="pill warn"><fmt:message key="subs.inactive"/></span>
+                  </c:otherwise>
                 </c:choose>
               </td>
 
@@ -158,10 +164,12 @@
                 <c:choose>
                   <c:when test="${s.active}">
                     <c:set var="cancelUrl" value="${cancelLinks[s.id.toString()]}" />
-                    <c:if test="${not empty cancelUrl}">
-                      <a href="${cancelUrl}" target="_blank" rel="noopener"><fmt:message key="subs.cancelLink"/></a>
-                    </c:if>
-                    <c:if test="${empty cancelUrl}">-</c:if>
+                    <c:choose>
+                      <c:when test="${not empty cancelUrl}">
+                        <a href="${cancelUrl}" target="_blank" rel="noopener">Manage</a>
+                      </c:when>
+                      <c:otherwise>-</c:otherwise>
+                    </c:choose>
                   </c:when>
                   <c:otherwise>-</c:otherwise>
                 </c:choose>
