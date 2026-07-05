@@ -315,10 +315,8 @@
     if (t.closest && (
             t.closest("[id^='renameBox-']") ||
             t.closest("[id^='categoryBox-']") ||
-            (t.tagName === "BUTTON" && t.getAttribute("onclick") && (
-                    t.getAttribute("onclick").includes("openRename") ||
-                    t.getAttribute("onclick").includes("openCategory")
-            ))
+            t.closest("button[onclick*='openRename']") ||
+            t.closest("button[onclick*='openCategory']")
     )) {
       return;
     }
