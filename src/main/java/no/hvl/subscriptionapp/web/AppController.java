@@ -145,7 +145,7 @@ public class AppController {
                             barWidth(p)
                     );
                 })
-                .sorted(Comparator.comparing(CategoryInsight::amount).reversed())
+                .sorted(Comparator.comparing(CategoryInsight::getAmount).reversed())
                 .toList();
 
         model.addAttribute("categoryInsights", categoryInsights);
@@ -211,8 +211,9 @@ public class AppController {
             return "Connect your bank or add subscriptions manually to start getting insights.";
         }
 
-        if (largestCategory != null && largestCategory.percent() >= 50) {
-            return largestCategory.category() + " makes up " + largestCategory.percent() +
+        if (largestCategory != null && largestCategory.getPercent() >= 50) {
+            return largestCategory.getCategory() + " makes up " +
+                    largestCategory.getPercent() +
                     "% of your monthly subscription spending.";
         }
 
