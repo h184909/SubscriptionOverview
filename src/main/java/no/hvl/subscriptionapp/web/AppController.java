@@ -238,10 +238,33 @@ public class AppController {
         return d;
     }
 
-    public record CategoryInsight(
-            String category,
-            BigDecimal amount,
-            int percent,
-            int barWidth
-    ) {}
+    public static class CategoryInsight {
+        private final String category;
+        private final BigDecimal amount;
+        private final int percent;
+        private final int barWidth;
+
+        public CategoryInsight(String category, BigDecimal amount, int percent, int barWidth) {
+            this.category = category;
+            this.amount = amount;
+            this.percent = percent;
+            this.barWidth = barWidth;
+        }
+
+        public String getCategory() {
+            return category;
+        }
+
+        public BigDecimal getAmount() {
+            return amount;
+        }
+
+        public int getPercent() {
+            return percent;
+        }
+
+        public int getBarWidth() {
+            return barWidth;
+        }
+    }
 }
