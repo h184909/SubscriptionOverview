@@ -9,14 +9,13 @@ import no.hvl.subscriptionapp.service.ExchangeRateService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import java.time.format.DateTimeFormatter;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.Comparator;
-import java.util.List;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @Controller
 public class AppController {
@@ -49,16 +48,14 @@ public class AppController {
         model.addAttribute("bankInstitutionName", connection != null ? connection.getInstitutionName() : null);
         model.addAttribute("bankAccountCount", connection != null ? connection.getAccountCount() : null);
         model.addAttribute("bankAccountNames", connection != null ? connection.getAccountNames() : null);
-        model.addAttribute("bankLastSyncedAt", connection != null ? connection.getLastSyncedAt() : null);
+
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
         ZoneId userZone = ZoneId.of("Europe/Oslo");
 
         model.addAttribute(
                 "bankLastSynced",
                 connection != null && connection.getLastSyncedAt() != null
-                        ? connection.getLastSyncedAt()
-                        .atZoneSameInstant(userZone)
-                        .format(dateTimeFormatter)
+                        ? connection.getLastSyncedAt().atZoneSameInstant(userZone).format(dateTimeFormatter)
                         : null
         );
 
@@ -88,6 +85,7 @@ public class AppController {
                 .toList();
 
         model.addAttribute("subs", activeSubs);
+        model.addAttribute("activeSubscriptionCount", activeSubs.size());
 
         LocalDate end = today.plusDays(7);
         List<Subscription> dueSoon = activeSubs.stream()
@@ -98,20 +96,132 @@ public class AppController {
                 .toList();
 
         model.addAttribute("dueSoon", dueSoon);
+        model.addAttribute("dueSoonCount", dueSoon.size());
+
+        LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
+        List<Subscription> dueThisMonth = activeSubs.stream()
+                .filter(s -> s.getNextChargeDate() != null)
+                .filter(s -> !s.getNextChargeDate().isBefore(today))
+                .filter(s -> !s.getNextChargeDate().isAfter(monthEnd))
+                .sorted(Comparator.comparing(Subscription::getNextChargeDate))
+                .toList();
+
+        model.addAttribute("dueThisMonth", dueThisMonth);
 
         BigDecimal totalMonthlyNok = BigDecimal.ZERO;
+
+        Map<String, BigDecimal> categoryTotals = new HashMap<>();
+        Map<UUID, BigDecimal> monthlyNokBySubId = new HashMap<>();
+
         for (Subscription s : activeSubs) {
             BigDecimal monthly = s.getMonthlyCost();
             if (monthly == null) continue;
 
             BigDecimal inNok = fx.convertToNok(monthly, s.getCurrency());
-            if (inNok != null) totalMonthlyNok = totalMonthlyNok.add(inNok);
+            if (inNok == null) continue;
+
+            inNok = inNok.setScale(2, RoundingMode.HALF_UP);
+            totalMonthlyNok = totalMonthlyNok.add(inNok);
+            monthlyNokBySubId.put(s.getId(), inNok);
+
+            String category = cleanCategory(s.getCategory());
+            categoryTotals.put(category, categoryTotals.getOrDefault(category, BigDecimal.ZERO).add(inNok));
         }
 
-        model.addAttribute("totalMonthlyNok", totalMonthlyNok);
+        BigDecimal finalTotalMonthlyNok = totalMonthlyNok.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal yearlyTotalNok = finalTotalMonthlyNok.multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP);
+
+        model.addAttribute("totalMonthlyNok", finalTotalMonthlyNok);
+        model.addAttribute("yearlyTotalNok", yearlyTotalNok);
+        model.addAttribute("monthlyNokBySubId", monthlyNokBySubId);
+
+        List<CategoryInsight> categoryInsights = categoryTotals.entrySet().stream()
+                .map(e -> {
+                    int p = percent(e.getValue(), finalTotalMonthlyNok);
+                    return new CategoryInsight(
+                            e.getKey(),
+                            e.getValue().setScale(2, RoundingMode.HALF_UP),
+                            p,
+                            barWidth(p)
+                    );
+                })
+                .sorted(Comparator.comparing(CategoryInsight::amount).reversed())
+                .toList();
+
+        model.addAttribute("categoryInsights", categoryInsights);
+
+        Optional<CategoryInsight> largestCategory = categoryInsights.stream().findFirst();
+        model.addAttribute("largestCategory", largestCategory.orElse(null));
+
+        List<Subscription> topSubscriptions = activeSubs.stream()
+                .sorted((a, b) -> monthlyNokBySubId.getOrDefault(b.getId(), BigDecimal.ZERO)
+                        .compareTo(monthlyNokBySubId.getOrDefault(a.getId(), BigDecimal.ZERO)))
+                .limit(5)
+                .toList();
+
+        model.addAttribute("topSubscriptions", topSubscriptions);
+
+        Subscription largestSubscription = topSubscriptions.isEmpty() ? null : topSubscriptions.get(0);
+        model.addAttribute("largestSubscription", largestSubscription);
+        model.addAttribute(
+                "largestSubscriptionMonthly",
+                largestSubscription == null ? null : monthlyNokBySubId.get(largestSubscription.getId())
+        );
+
+        model.addAttribute("smartInsight", buildSmartInsight(
+                activeSubs.size(),
+                finalTotalMonthlyNok,
+                largestCategory.orElse(null),
+                largestSubscription,
+                largestSubscription == null ? null : monthlyNokBySubId.get(largestSubscription.getId())
+        ));
+
         model.addAttribute("showDevLinks", false);
 
         return "app";
+    }
+
+    private String cleanCategory(String category) {
+        if (category == null || category.isBlank() || "Other".equalsIgnoreCase(category.trim())) {
+            return "Uncategorized";
+        }
+        return category.trim();
+    }
+
+    private int percent(BigDecimal part, BigDecimal total) {
+        if (part == null || total == null || total.compareTo(BigDecimal.ZERO) <= 0) return 0;
+        return part.multiply(BigDecimal.valueOf(100))
+                .divide(total, 0, RoundingMode.HALF_UP)
+                .intValue();
+    }
+
+    private int barWidth(int percent) {
+        if (percent <= 0) return 4;
+        return Math.max(4, Math.min(100, percent));
+    }
+
+    private String buildSmartInsight(
+            int count,
+            BigDecimal totalMonthly,
+            CategoryInsight largestCategory,
+            Subscription largestSubscription,
+            BigDecimal largestSubscriptionMonthly
+    ) {
+        if (count == 0) {
+            return "Connect your bank or add subscriptions manually to start getting insights.";
+        }
+
+        if (largestCategory != null && largestCategory.percent() >= 50) {
+            return largestCategory.category() + " makes up " + largestCategory.percent() +
+                    "% of your monthly subscription spending.";
+        }
+
+        if (largestSubscription != null && largestSubscriptionMonthly != null) {
+            return largestSubscription.getName() + " is your largest subscription at " +
+                    largestSubscriptionMonthly + " NOK/month.";
+        }
+
+        return "You currently spend about " + totalMonthly + " NOK per month across " + count + " subscriptions.";
     }
 
     private LocalDate rollForward(LocalDate next, String interval, LocalDate today) {
@@ -120,10 +230,18 @@ public class AppController {
             d = switch (interval) {
                 case "WEEKLY" -> d.plusWeeks(1);
                 case "MONTHLY" -> d.plusMonths(1);
+                case "QUARTERLY" -> d.plusMonths(3);
                 case "YEARLY" -> d.plusYears(1);
                 default -> d.plusMonths(1);
             };
         }
         return d;
     }
+
+    public record CategoryInsight(
+            String category,
+            BigDecimal amount,
+            int percent,
+            int barWidth
+    ) {}
 }

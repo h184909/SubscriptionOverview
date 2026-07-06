@@ -128,12 +128,12 @@
                         <span class="pill"
                               style="white-space:nowrap; min-width:145px; display:inline-flex; justify-content:center;">
                           <c:choose>
-                            <c:when test="${s.category == 'Entertainment'}">🎬 </c:when>
-                            <c:when test="${s.category == 'Telecom'}">📱 </c:when>
-                            <c:when test="${s.category == 'Utilities'}">🛠️ </c:when>
-                            <c:when test="${s.category == 'Health & Fitness'}">💪 </c:when>
-                            <c:when test="${s.category == 'News'}">📰 </c:when>
-                            <c:when test="${s.category == 'Shopping & Food'}">🍔 </c:when>
+                            <c:when test="${s.category == 'Entertainment'}"></c:when>
+                            <c:when test="${s.category == 'Telecom'}"></c:when>
+                            <c:when test="${s.category == 'Utilities'}"></c:when>
+                            <c:when test="${s.category == 'Health & Fitness'}"></c:when>
+                            <c:when test="${s.category == 'News'}"></c:when>
+                            <c:when test="${s.category == 'Shopping & Food'}"></c:when>
                             <c:otherwise>📦 </c:otherwise>
                           </c:choose>
                           <c:out value="${s.category}" />

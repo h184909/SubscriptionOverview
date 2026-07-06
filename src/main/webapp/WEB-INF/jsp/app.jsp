@@ -73,7 +73,7 @@
             </div>
           </c:if>
 
-          <c:if test="${not empty bankLastSyncedAt}">
+          <c:if test="${not empty bankLastSynced}">
             <div class="muted" style="margin-top:6px;">
               Last synced: <b><c:out value="${bankLastSynced}"/></b>
             </div>
@@ -115,21 +115,151 @@
         </c:otherwise>
       </c:choose>
 
-      <c:if test="${showDevLinks}">
-        <hr class="sep"/>
-        <div class="notice">
-          <b>Dev / test</b><br/>
-          <a href="<c:url value='/openbanking/test/accounts'/>">Test: hent kontoer</a> ·
-          <a href="<c:url value='/openbanking/import-and-suggest'/>">Importer transaksjoner + finn forslag</a>
-        </div>
-      </c:if>
-
       <hr class="sep"/>
       <form method="post" action="<c:url value='/logout'/>">
         <button class="btn btn-danger" type="submit"><fmt:message key="dash.logout"/></button>
       </form>
     </div>
 
+    <div class="card">
+      <h3>Overview</h3>
+
+      <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; margin-top:10px;">
+        <div class="notice">
+          <div class="muted">Monthly cost</div>
+          <div style="font-size:24px; font-weight:800; margin-top:4px;">
+            <c:out value="${totalMonthlyNok}"/> NOK
+          </div>
+        </div>
+
+        <div class="notice">
+          <div class="muted">Yearly estimate</div>
+          <div style="font-size:24px; font-weight:800; margin-top:4px;">
+            <c:out value="${yearlyTotalNok}"/> NOK
+          </div>
+        </div>
+
+        <div class="notice">
+          <div class="muted">Active subscriptions</div>
+          <div style="font-size:24px; font-weight:800; margin-top:4px;">
+            <c:out value="${activeSubscriptionCount}"/>
+          </div>
+        </div>
+
+        <div class="notice">
+          <div class="muted">Due next 7 days</div>
+          <div style="font-size:24px; font-weight:800; margin-top:4px;">
+            <c:out value="${dueSoonCount}"/>
+          </div>
+        </div>
+      </div>
+
+      <c:if test="${not empty largestCategory}">
+        <hr class="sep"/>
+        <div>
+          <div class="muted">Largest category</div>
+          <div style="margin-top:6px;">
+            <span class="pill ok">
+              <b><c:out value="${largestCategory.category}"/></b>
+              · <c:out value="${largestCategory.amount}"/> NOK/month
+              · <c:out value="${largestCategory.percent}"/>%
+            </span>
+          </div>
+        </div>
+      </c:if>
+
+      <c:if test="${not empty largestSubscription}">
+        <div style="margin-top:12px;">
+          <div class="muted">Largest subscription</div>
+          <div style="margin-top:6px;">
+            <b><c:out value="${largestSubscription.name}"/></b>
+            <span class="muted">
+              · <c:out value="${largestSubscriptionMonthly}"/> NOK/month
+            </span>
+          </div>
+        </div>
+      </c:if>
+
+      <c:if test="${not empty smartInsight}">
+        <hr class="sep"/>
+        <div class="notice">
+          💡 <c:out value="${smartInsight}"/>
+        </div>
+      </c:if>
+    </div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Monthly spending by category</h3>
+
+      <c:if test="${empty categoryInsights}">
+        <div class="muted">No category data yet.</div>
+      </c:if>
+
+      <c:if test="${not empty categoryInsights}">
+        <div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">
+          <c:forEach var="c" items="${categoryInsights}">
+            <div>
+              <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
+                <div>
+                  <b><c:out value="${c.category}"/></b>
+                  <span class="muted"> · <c:out value="${c.percent}"/>%</span>
+                </div>
+                <div>
+                  <b><c:out value="${c.amount}"/></b> NOK
+                </div>
+              </div>
+
+              <div style="height:9px; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden; margin-top:6px;">
+                <div style="height:9px; width:${c.barWidth}%; background:rgba(255,255,255,.55); border-radius:999px;"></div>
+              </div>
+            </div>
+          </c:forEach>
+        </div>
+      </c:if>
+    </div>
+
+    <div class="card">
+      <h3>Top subscriptions</h3>
+
+      <c:if test="${empty topSubscriptions}">
+        <div class="muted">No active subscriptions yet.</div>
+      </c:if>
+
+      <c:if test="${not empty topSubscriptions}">
+        <div class="tablewrap" style="margin-top:10px;">
+          <table>
+            <thead>
+            <tr>
+              <th>Name</th>
+              <th>Category</th>
+              <th>Monthly</th>
+            </tr>
+            </thead>
+            <tbody>
+            <c:forEach var="s" items="${topSubscriptions}">
+              <tr>
+                <td><b><c:out value="${s.name}"/></b></td>
+                <td>
+                  <c:choose>
+                    <c:when test="${empty s.category || s.category == 'Other'}">-</c:when>
+                    <c:otherwise><c:out value="${s.category}"/></c:otherwise>
+                  </c:choose>
+                </td>
+                <td>
+                  <b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK
+                </td>
+              </tr>
+            </c:forEach>
+            </tbody>
+          </table>
+        </div>
+      </c:if>
+    </div>
+  </div>
+
+  <div class="grid two">
     <div class="card">
       <h3><fmt:message key="dash.dueSoon"/></h3>
 
@@ -160,6 +290,37 @@
         </div>
       </c:if>
     </div>
+
+    <div class="card">
+      <h3>Due this month</h3>
+
+      <c:if test="${empty dueThisMonth}">
+        <div class="muted">No more payments expected this month.</div>
+      </c:if>
+
+      <c:if test="${not empty dueThisMonth}">
+        <div class="tablewrap" style="margin-top:10px;">
+          <table>
+            <thead>
+            <tr>
+              <th>Name</th>
+              <th>Date</th>
+              <th>Amount</th>
+            </tr>
+            </thead>
+            <tbody>
+            <c:forEach var="s" items="${dueThisMonth}">
+              <tr>
+                <td><b><c:out value="${s.name}"/></b></td>
+                <td><c:out value="${s.nextChargeDate}"/></td>
+                <td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td>
+              </tr>
+            </c:forEach>
+            </tbody>
+          </table>
+        </div>
+      </c:if>
+    </div>
   </div>
 
   <div class="card">
@@ -175,6 +336,7 @@
           <thead>
           <tr>
             <th><fmt:message key="table.name"/></th>
+            <th>Category</th>
             <th><fmt:message key="table.price"/></th>
             <th><fmt:message key="table.interval"/></th>
             <th><fmt:message key="table.nextCharge"/></th>
@@ -185,6 +347,13 @@
           <c:forEach var="s" items="${subs}">
             <tr>
               <td><c:out value="${s.name}"/></td>
+
+              <td>
+                <c:choose>
+                  <c:when test="${empty s.category || s.category == 'Other'}">-</c:when>
+                  <c:otherwise><c:out value="${s.category}"/></c:otherwise>
+                </c:choose>
+              </td>
 
               <td>
                 <c:out value="${s.amount}"/>
@@ -204,11 +373,7 @@
               </td>
 
               <td>
-                <b><c:out value="${s.monthlyCost}"/></b>
-                <c:choose>
-                  <c:when test="${pageContext.request.locale.language == 'nb'}"> NOK</c:when>
-                  <c:otherwise> <c:out value="${s.currency}"/></c:otherwise>
-                </c:choose>
+                <b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK
               </td>
             </tr>
           </c:forEach>
