@@ -14,6 +14,104 @@
   <link rel="apple-touch-icon" href="<c:url value='/apple-touch-icon.png'/>" />
   <meta name="theme-color" content="#0b1220" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    .dash-kpis {
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:12px;
+      margin-top:10px;
+    }
+
+    .kpi-card {
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.035);
+      border-radius:14px;
+      padding:14px;
+    }
+
+    .kpi-label {
+      color:var(--muted);
+      font-size:13px;
+      margin-bottom:8px;
+    }
+
+    .kpi-value {
+      font-size:26px;
+      font-weight:900;
+      letter-spacing:-.03em;
+    }
+
+    .bar-track {
+      height:10px;
+      background:rgba(255,255,255,.08);
+      border-radius:999px;
+      overflow:hidden;
+      margin-top:7px;
+    }
+
+    .bar-fill {
+      height:10px;
+      background:linear-gradient(90deg, rgba(96,165,250,.95), rgba(52,211,153,.95));
+      border-radius:999px;
+    }
+
+    .donut-wrap {
+      display:flex;
+      gap:18px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-top:14px;
+    }
+
+    .donut {
+      width:135px;
+      height:135px;
+      border-radius:50%;
+      background:${categoryChartCss};
+      position:relative;
+      flex:0 0 auto;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);
+    }
+
+    .donut:after {
+      content:"";
+      position:absolute;
+      inset:28px;
+      background:var(--card);
+      border-radius:50%;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);
+    }
+
+    .legend-dot {
+      display:inline-block;
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:rgba(96,165,250,.85);
+      margin-right:8px;
+    }
+
+    .compact-list {
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      margin-top:12px;
+    }
+
+    .compact-row {
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:center;
+    }
+
+    @media (max-width: 800px) {
+      .dash-kpis {
+        grid-template-columns:1fr;
+      }
+    }
+  </style>
 </head>
 <body>
 
@@ -124,52 +222,46 @@
     <div class="card">
       <h3>Overview</h3>
 
-      <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; margin-top:10px;">
-        <div class="notice">
-          <div class="muted">Monthly cost</div>
-          <div style="font-size:24px; font-weight:800; margin-top:4px;">
-            <c:out value="${totalMonthlyNok}"/> NOK
-          </div>
+      <div class="dash-kpis">
+        <div class="kpi-card">
+          <div class="kpi-label">Monthly cost</div>
+          <div class="kpi-value"><c:out value="${totalMonthlyNok}"/> NOK</div>
         </div>
 
-        <div class="notice">
-          <div class="muted">Yearly estimate</div>
-          <div style="font-size:24px; font-weight:800; margin-top:4px;">
-            <c:out value="${yearlyTotalNok}"/> NOK
-          </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Yearly estimate</div>
+          <div class="kpi-value"><c:out value="${yearlyTotalNok}"/> NOK</div>
         </div>
 
-        <div class="notice">
-          <div class="muted">Active subscriptions</div>
-          <div style="font-size:24px; font-weight:800; margin-top:4px;">
-            <c:out value="${activeSubscriptionCount}"/>
-          </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Active subscriptions</div>
+          <div class="kpi-value"><c:out value="${activeSubscriptionCount}"/></div>
         </div>
 
-        <div class="notice">
-          <div class="muted">Due next 7 days</div>
-          <div style="font-size:24px; font-weight:800; margin-top:4px;">
-            <c:out value="${dueSoonCount}"/>
-          </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Due next 7 days</div>
+          <div class="kpi-value"><c:out value="${dueSoonCount}"/></div>
         </div>
       </div>
 
       <c:if test="${not empty largestCategory}">
         <hr class="sep"/>
-        <div>
-          <div class="muted">Largest category</div>
-          <div style="margin-top:6px;">
-            <span class="pill ok">
+        <div class="compact-row">
+          <div>
+            <div class="muted">Largest category</div>
+            <div style="margin-top:6px;">
               <b><c:out value="${largestCategory.category}"/></b>
-              · <c:out value="${largestCategory.amount}"/> NOK/month
-              · <c:out value="${largestCategory.percent}"/>%
-            </span>
+              <span class="muted"> · <c:out value="${largestCategory.percent}"/>%</span>
+            </div>
           </div>
+          <span class="pill ok">
+            <c:out value="${largestCategory.amount}"/> NOK/month
+          </span>
         </div>
       </c:if>
 
       <c:if test="${not empty largestSubscription}">
-        <div style="margin-top:12px;">
+        <div style="margin-top:14px;">
           <div class="muted">Largest subscription</div>
           <div style="margin-top:6px;">
             <b><c:out value="${largestSubscription.name}"/></b>
@@ -191,35 +283,65 @@
 
   <div class="grid two">
     <div class="card">
-      <h3>Monthly spending by category</h3>
+      <h3>Category distribution</h3>
 
       <c:if test="${empty categoryInsights}">
         <div class="muted">No category data yet.</div>
       </c:if>
 
       <c:if test="${not empty categoryInsights}">
-        <div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">
-          <c:forEach var="c" items="${categoryInsights}">
-            <div>
-              <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
-                <div>
-                  <b><c:out value="${c.category}"/></b>
-                  <span class="muted"> · <c:out value="${c.percent}"/>%</span>
-                </div>
-                <div>
-                  <b><c:out value="${c.amount}"/></b> NOK
-                </div>
-              </div>
+        <div class="donut-wrap">
+          <div class="donut" aria-label="Category distribution"></div>
 
-              <div style="height:9px; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden; margin-top:6px;">
-                <div style="height:9px; width:${c.barWidth}%; background:rgba(255,255,255,.55); border-radius:999px;"></div>
+          <div style="flex:1; min-width:220px;">
+            <div class="compact-list">
+              <c:forEach var="c" items="${categoryInsights}">
+                <div>
+                  <div class="compact-row">
+                    <div>
+                      <b><c:out value="${c.category}"/></b>
+                      <span class="muted"> · <c:out value="${c.percent}"/>%</span>
+                    </div>
+                    <div><b><c:out value="${c.amount}"/></b> NOK</div>
+                  </div>
+
+                  <div class="bar-track">
+                    <div class="bar-fill" style="width:${c.barWidth}%;"></div>
+                  </div>
+                </div>
+              </c:forEach>
+            </div>
+          </div>
+        </div>
+      </c:if>
+    </div>
+
+    <div class="card">
+      <h3>6-month projection</h3>
+
+      <c:if test="${empty projectionMonths}">
+        <div class="muted">No projection data yet.</div>
+      </c:if>
+
+      <c:if test="${not empty projectionMonths}">
+        <div class="compact-list">
+          <c:forEach var="m" items="${projectionMonths}">
+            <div>
+              <div class="compact-row">
+                <div><b><c:out value="${m.label}"/></b></div>
+                <div><b><c:out value="${m.amount}"/></b> NOK</div>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${m.barWidth}%;"></div>
               </div>
             </div>
           </c:forEach>
         </div>
       </c:if>
     </div>
+  </div>
 
+  <div class="grid two">
     <div class="card">
       <h3>Top subscriptions</h3>
 
@@ -247,42 +369,7 @@
                     <c:otherwise><c:out value="${s.category}"/></c:otherwise>
                   </c:choose>
                 </td>
-                <td>
-                  <b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK
-                </td>
-              </tr>
-            </c:forEach>
-            </tbody>
-          </table>
-        </div>
-      </c:if>
-    </div>
-  </div>
-
-  <div class="grid two">
-    <div class="card">
-      <h3><fmt:message key="dash.dueSoon"/></h3>
-
-      <c:if test="${empty dueSoon}">
-        <div class="muted"><fmt:message key="dash.noDueSoon"/></div>
-      </c:if>
-
-      <c:if test="${not empty dueSoon}">
-        <div class="tablewrap" style="margin-top:10px;">
-          <table>
-            <thead>
-            <tr>
-              <th><fmt:message key="table.name"/></th>
-              <th><fmt:message key="table.nextCharge"/></th>
-              <th><fmt:message key="table.price"/></th>
-            </tr>
-            </thead>
-            <tbody>
-            <c:forEach var="s" items="${dueSoon}">
-              <tr>
-                <td><b><c:out value="${s.name}"/></b></td>
-                <td><c:out value="${s.nextChargeDate}"/></td>
-                <td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td>
+                <td><b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK</td>
               </tr>
             </c:forEach>
             </tbody>
@@ -372,9 +459,7 @@
                 </c:choose>
               </td>
 
-              <td>
-                <b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK
-              </td>
+              <td><b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK</td>
             </tr>
           </c:forEach>
           </tbody>
@@ -384,10 +469,7 @@
       <div style="margin-top:12px;">
         <span class="pill ok">
           <fmt:message key="dash.totalMonthly"/>
-          <b>
-            <c:out value="${totalMonthlyNok}"/>
-            NOK
-          </b>
+          <b><c:out value="${totalMonthlyNok}"/> NOK</b>
         </span>
       </div>
     </c:if>

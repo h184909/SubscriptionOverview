@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -109,7 +110,6 @@ public class AppController {
         model.addAttribute("dueThisMonth", dueThisMonth);
 
         BigDecimal totalMonthlyNok = BigDecimal.ZERO;
-
         Map<String, BigDecimal> categoryTotals = new HashMap<>();
         Map<UUID, BigDecimal> monthlyNokBySubId = new HashMap<>();
 
@@ -149,9 +149,10 @@ public class AppController {
                 .toList();
 
         model.addAttribute("categoryInsights", categoryInsights);
+        model.addAttribute("categoryChartCss", buildCategoryChartCss(categoryInsights));
 
-        Optional<CategoryInsight> largestCategory = categoryInsights.stream().findFirst();
-        model.addAttribute("largestCategory", largestCategory.orElse(null));
+        CategoryInsight largestCategory = categoryInsights.isEmpty() ? null : categoryInsights.get(0);
+        model.addAttribute("largestCategory", largestCategory);
 
         List<Subscription> topSubscriptions = activeSubs.stream()
                 .sorted((a, b) -> monthlyNokBySubId.getOrDefault(b.getId(), BigDecimal.ZERO)
@@ -168,17 +169,117 @@ public class AppController {
                 largestSubscription == null ? null : monthlyNokBySubId.get(largestSubscription.getId())
         );
 
+        model.addAttribute("projectionMonths", buildProjectionMonths(activeSubs, today));
         model.addAttribute("smartInsight", buildSmartInsight(
                 activeSubs.size(),
                 finalTotalMonthlyNok,
-                largestCategory.orElse(null),
+                largestCategory,
                 largestSubscription,
-                largestSubscription == null ? null : monthlyNokBySubId.get(largestSubscription.getId())
+                largestSubscription == null ? null : monthlyNokBySubId.get(largestSubscription.getId()),
+                dueThisMonth.size()
         ));
 
         model.addAttribute("showDevLinks", false);
 
         return "app";
+    }
+
+    private List<MonthProjection> buildProjectionMonths(List<Subscription> activeSubs, LocalDate today) {
+        YearMonth startMonth = YearMonth.from(today);
+        Map<YearMonth, BigDecimal> totals = new LinkedHashMap<>();
+
+        for (int i = 0; i < 6; i++) {
+            totals.put(startMonth.plusMonths(i), BigDecimal.ZERO);
+        }
+
+        LocalDate startDate = startMonth.atDay(1);
+        LocalDate endDate = startMonth.plusMonths(5).atEndOfMonth();
+
+        for (Subscription s : activeSubs) {
+            if (s.getNextChargeDate() == null || s.getAmount() == null) continue;
+
+            BigDecimal chargeNok = fx.convertToNok(s.getAmount(), s.getCurrency());
+            if (chargeNok == null) continue;
+
+            LocalDate chargeDate = s.getNextChargeDate();
+
+            while (chargeDate.isBefore(startDate)) {
+                chargeDate = advance(chargeDate, s.getInterval());
+            }
+
+            int guard = 0;
+            while (!chargeDate.isAfter(endDate) && guard++ < 100) {
+                YearMonth ym = YearMonth.from(chargeDate);
+                if (totals.containsKey(ym)) {
+                    totals.put(ym, totals.get(ym).add(chargeNok));
+                }
+                chargeDate = advance(chargeDate, s.getInterval());
+            }
+        }
+
+        BigDecimal max = totals.values().stream()
+                .max(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
+
+        DateTimeFormatter labelFmt = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);
+
+        List<MonthProjection> result = new ArrayList<>();
+        for (var e : totals.entrySet()) {
+            BigDecimal amount = e.getValue().setScale(2, RoundingMode.HALF_UP);
+            int width = max.compareTo(BigDecimal.ZERO) <= 0
+                    ? 4
+                    : amount.multiply(BigDecimal.valueOf(100)).divide(max, 0, RoundingMode.HALF_UP).intValue();
+
+            result.add(new MonthProjection(
+                    e.getKey().atDay(1).format(labelFmt),
+                    amount,
+                    Math.max(4, Math.min(100, width))
+            ));
+        }
+
+        return result;
+    }
+
+    private String buildCategoryChartCss(List<CategoryInsight> insights) {
+        if (insights == null || insights.isEmpty()) {
+            return "conic-gradient(rgba(255,255,255,.12) 0 100%)";
+        }
+
+        StringBuilder sb = new StringBuilder("conic-gradient(");
+        int current = 0;
+
+        for (int i = 0; i < insights.size(); i++) {
+            CategoryInsight c = insights.get(i);
+            int next = (i == insights.size() - 1) ? 100 : Math.min(100, current + c.getPercent());
+
+            if (i > 0) sb.append(", ");
+            sb.append(colorForCategory(c.getCategory()))
+                    .append(" ")
+                    .append(current)
+                    .append("% ")
+                    .append(next)
+                    .append("%");
+
+            current = next;
+        }
+
+        sb.append(")");
+        return sb.toString();
+    }
+
+    private String colorForCategory(String category) {
+        if (category == null) return "#64748b";
+
+        return switch (category) {
+            case "Entertainment" -> "#60a5fa";
+            case "Utilities" -> "#34d399";
+            case "Telecom" -> "#f59e0b";
+            case "Health & Fitness" -> "#fb7185";
+            case "News" -> "#a78bfa";
+            case "Shopping & Food" -> "#f97316";
+            case "Uncategorized" -> "#64748b";
+            default -> "#94a3b8";
+        };
     }
 
     private String cleanCategory(String category) {
@@ -205,16 +306,21 @@ public class AppController {
             BigDecimal totalMonthly,
             CategoryInsight largestCategory,
             Subscription largestSubscription,
-            BigDecimal largestSubscriptionMonthly
+            BigDecimal largestSubscriptionMonthly,
+            int dueThisMonthCount
     ) {
         if (count == 0) {
-            return "Connect your bank or add subscriptions manually to start getting insights.";
+            return "Add subscriptions manually or import transactions to start getting insights.";
         }
 
         if (largestCategory != null && largestCategory.getPercent() >= 50) {
             return largestCategory.getCategory() + " makes up " +
                     largestCategory.getPercent() +
                     "% of your monthly subscription spending.";
+        }
+
+        if (dueThisMonthCount > 0) {
+            return "You have " + dueThisMonthCount + " subscription payment(s) coming up this month.";
         }
 
         if (largestSubscription != null && largestSubscriptionMonthly != null) {
@@ -228,15 +334,18 @@ public class AppController {
     private LocalDate rollForward(LocalDate next, String interval, LocalDate today) {
         LocalDate d = next;
         while (!d.isAfter(today)) {
-            d = switch (interval) {
-                case "WEEKLY" -> d.plusWeeks(1);
-                case "MONTHLY" -> d.plusMonths(1);
-                case "QUARTERLY" -> d.plusMonths(3);
-                case "YEARLY" -> d.plusYears(1);
-                default -> d.plusMonths(1);
-            };
+            d = advance(d, interval);
         }
         return d;
+    }
+
+    private LocalDate advance(LocalDate d, String interval) {
+        return switch (interval == null ? "MONTHLY" : interval.trim().toUpperCase()) {
+            case "WEEKLY" -> d.plusWeeks(1);
+            case "QUARTERLY" -> d.plusMonths(3);
+            case "YEARLY" -> d.plusYears(1);
+            default -> d.plusMonths(1);
+        };
     }
 
     public static class CategoryInsight {
@@ -252,20 +361,25 @@ public class AppController {
             this.barWidth = barWidth;
         }
 
-        public String getCategory() {
-            return category;
+        public String getCategory() { return category; }
+        public BigDecimal getAmount() { return amount; }
+        public int getPercent() { return percent; }
+        public int getBarWidth() { return barWidth; }
+    }
+
+    public static class MonthProjection {
+        private final String label;
+        private final BigDecimal amount;
+        private final int barWidth;
+
+        public MonthProjection(String label, BigDecimal amount, int barWidth) {
+            this.label = label;
+            this.amount = amount;
+            this.barWidth = barWidth;
         }
 
-        public BigDecimal getAmount() {
-            return amount;
-        }
-
-        public int getPercent() {
-            return percent;
-        }
-
-        public int getBarWidth() {
-            return barWidth;
-        }
+        public String getLabel() { return label; }
+        public BigDecimal getAmount() { return amount; }
+        public int getBarWidth() { return barWidth; }
     }
 }
