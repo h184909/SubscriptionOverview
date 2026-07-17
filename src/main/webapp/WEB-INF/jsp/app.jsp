@@ -126,6 +126,65 @@
         grid-template-columns:1fr;
       }
     }
+
+    .dashboard-table {
+      width: 100%;
+      min-width: 0;
+      table-layout: fixed;
+    }
+
+    .dashboard-table th,
+    .dashboard-table td {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      vertical-align: middle;
+    }
+
+    .dashboard-table th {
+      font-size: 12px;
+    }
+
+    .dashboard-table td {
+      font-size: 14px;
+    }
+
+    .top-subscriptions-table th:nth-child(1),
+    .top-subscriptions-table td:nth-child(1) {
+      width: 42%;
+    }
+
+    .top-subscriptions-table th:nth-child(2),
+    .top-subscriptions-table td:nth-child(2) {
+      width: 32%;
+    }
+
+    .top-subscriptions-table th:nth-child(3),
+    .top-subscriptions-table td:nth-child(3) {
+      width: 26%;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .due-month-table th:nth-child(1),
+    .due-month-table td:nth-child(1) {
+      width: 42%;
+    }
+
+    .due-month-table th:nth-child(2),
+    .due-month-table td:nth-child(2) {
+      width: 28%;
+    }
+
+    .due-month-table th:nth-child(3),
+    .due-month-table td:nth-child(3) {
+      width: 30%;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .dashboard-compact-tablewrap {
+      overflow-x: visible;
+    }
   </style>
 </head>
 <body>
@@ -362,26 +421,36 @@
       </c:if>
 
       <c:if test="${not empty topSubscriptions}">
-        <div class="tablewrap" style="margin-top:10px;">
-          <table>
+        <div class="dashboard-compact-tablewrap" style="margin-top:10px;">
+          <table class="dashboard-table top-subscriptions-table">
             <thead>
             <tr>
               <th><fmt:message key="table.name"/></th>
-              <th>Category</th>
+              <th><fmt:message key="dash.category"/></th>
               <th><fmt:message key="dash.monthly"/></th>
             </tr>
             </thead>
             <tbody>
             <c:forEach var="s" items="${topSubscriptions}">
               <tr>
-                <td><b><c:out value="${s.name}"/></b></td>
+                <td>
+                  <b><c:out value="${s.name}"/></b>
+                </td>
+
                 <td>
                   <c:choose>
-                    <c:when test="${empty s.category || s.category == 'Other'}">-</c:when>
-                    <c:otherwise><c:out value="${s.category}"/></c:otherwise>
+                    <c:when test="${empty s.category || s.category == 'Other'}">
+                      -
+                    </c:when>
+                    <c:otherwise>
+                      <c:out value="${s.category}"/>
+                    </c:otherwise>
                   </c:choose>
                 </td>
-                <td><b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK</td>
+
+                <td>
+                  <b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK
+                </td>
               </tr>
             </c:forEach>
             </tbody>
@@ -398,8 +467,8 @@
       </c:if>
 
       <c:if test="${not empty dueThisMonth}">
-        <div class="tablewrap" style="margin-top:10px;">
-          <table>
+        <div class="dashboard-compact-tablewrap" style="margin-top:10px;">
+          <table class="dashboard-table due-month-table">
             <thead>
             <tr>
               <th><fmt:message key="table.name"/></th>
@@ -410,9 +479,18 @@
             <tbody>
             <c:forEach var="s" items="${dueThisMonth}">
               <tr>
-                <td><b><c:out value="${s.name}"/></b></td>
-                <td><c:out value="${s.nextChargeDate}"/></td>
-                <td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td>
+                <td>
+                  <b><c:out value="${s.name}"/></b>
+                </td>
+
+                <td>
+                  <c:out value="${s.nextChargeDate}"/>
+                </td>
+
+                <td>
+                  <b><c:out value="${s.amount}"/></b>
+                  <c:out value="${s.currency}"/>
+                </td>
               </tr>
             </c:forEach>
             </tbody>
