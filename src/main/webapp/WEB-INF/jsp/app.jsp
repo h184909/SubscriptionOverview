@@ -16,6 +16,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
+    .dashboard-grid {
+      display:grid;
+      grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
+      gap:16px;
+      align-items:start;
+    }
+
+    .dashboard-grid > .card {
+      min-width:0;
+    }
+
+    .dashboard-full {
+      grid-column:1 / -1;
+      min-width:0;
+    }
+
+    .tablewrap {
+      overflow-x:auto;
+    }
+
     .dash-kpis {
       display:grid;
       grid-template-columns:repeat(2, minmax(0, 1fr));
@@ -83,15 +103,6 @@
       box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);
     }
 
-    .legend-dot {
-      display:inline-block;
-      width:10px;
-      height:10px;
-      border-radius:50%;
-      background:rgba(96,165,250,.85);
-      margin-right:8px;
-    }
-
     .compact-list {
       display:flex;
       flex-direction:column;
@@ -106,7 +117,11 @@
       align-items:center;
     }
 
-    @media (max-width: 800px) {
+    @media (max-width: 900px) {
+      .dashboard-grid {
+        grid-template-columns:1fr;
+      }
+
       .dash-kpis {
         grid-template-columns:1fr;
       }
@@ -147,7 +162,8 @@
     </div>
   </c:if>
 
-  <div class="grid two">
+  <div class="dashboard-grid">
+
     <div class="card">
       <h3><fmt:message key="dash.status"/></h3>
       <div class="muted"><fmt:message key="dash.loggedInAs"/> <b><c:out value="${email}"/></b></div>
@@ -164,7 +180,7 @@
 
           <c:if test="${not empty bankAccountCount}">
             <div class="muted" style="margin-top:6px;">
-              <c:out value="${bankAccountCount}"/> account(s)
+              <c:out value="${bankAccountCount}"/> <fmt:message key="dash.accounts"/>
               <c:if test="${not empty bankAccountNames}">
                 · <c:out value="${bankAccountNames}"/>
               </c:if>
@@ -173,7 +189,7 @@
 
           <c:if test="${not empty bankLastSynced}">
             <div class="muted" style="margin-top:6px;">
-              Last synced: <b><c:out value="${bankLastSynced}"/></b>
+              <fmt:message key="dash.lastSynced"/> <b><c:out value="${bankLastSynced}"/></b>
             </div>
           </c:if>
 
@@ -220,26 +236,26 @@
     </div>
 
     <div class="card">
-      <h3>Overview</h3>
+      <h3><fmt:message key="dash.overview"/></h3>
 
       <div class="dash-kpis">
         <div class="kpi-card">
-          <div class="kpi-label">Monthly cost</div>
+          <div class="kpi-label"><fmt:message key="dash.monthlyCost"/></div>
           <div class="kpi-value"><c:out value="${totalMonthlyNok}"/> NOK</div>
         </div>
 
         <div class="kpi-card">
-          <div class="kpi-label">Yearly estimate</div>
+          <div class="kpi-label"><fmt:message key="dash.yearlyEstimate"/></div>
           <div class="kpi-value"><c:out value="${yearlyTotalNok}"/> NOK</div>
         </div>
 
         <div class="kpi-card">
-          <div class="kpi-label">Active subscriptions</div>
+          <div class="kpi-label"><fmt:message key="dash.activeCount"/></div>
           <div class="kpi-value"><c:out value="${activeSubscriptionCount}"/></div>
         </div>
 
         <div class="kpi-card">
-          <div class="kpi-label">Due next 7 days</div>
+          <div class="kpi-label"><fmt:message key="dash.dueNext7"/></div>
           <div class="kpi-value"><c:out value="${dueSoonCount}"/></div>
         </div>
       </div>
@@ -248,25 +264,25 @@
         <hr class="sep"/>
         <div class="compact-row">
           <div>
-            <div class="muted">Largest category</div>
+            <div class="muted"><fmt:message key="dash.largestCategory"/></div>
             <div style="margin-top:6px;">
               <b><c:out value="${largestCategory.category}"/></b>
               <span class="muted"> · <c:out value="${largestCategory.percent}"/>%</span>
             </div>
           </div>
           <span class="pill ok">
-            <c:out value="${largestCategory.amount}"/> NOK/month
+            <c:out value="${largestCategory.amount}"/> NOK/<fmt:message key="dash.monthShort"/>
           </span>
         </div>
       </c:if>
 
       <c:if test="${not empty largestSubscription}">
         <div style="margin-top:14px;">
-          <div class="muted">Largest subscription</div>
+          <div class="muted"><fmt:message key="dash.largestSubscription"/></div>
           <div style="margin-top:6px;">
             <b><c:out value="${largestSubscription.name}"/></b>
             <span class="muted">
-              · <c:out value="${largestSubscriptionMonthly}"/> NOK/month
+              · <c:out value="${largestSubscriptionMonthly}"/> NOK/<fmt:message key="dash.monthShort"/>
             </span>
           </div>
         </div>
@@ -279,14 +295,12 @@
         </div>
       </c:if>
     </div>
-  </div>
 
-  <div class="grid two">
     <div class="card">
-      <h3>Category distribution</h3>
+      <h3><fmt:message key="dash.categoryDistribution"/></h3>
 
       <c:if test="${empty categoryInsights}">
-        <div class="muted">No category data yet.</div>
+        <div class="muted"><fmt:message key="dash.noCategoryData"/></div>
       </c:if>
 
       <c:if test="${not empty categoryInsights}">
@@ -317,10 +331,10 @@
     </div>
 
     <div class="card">
-      <h3>6-month projection</h3>
+      <h3><fmt:message key="dash.projection"/></h3>
 
       <c:if test="${empty projectionMonths}">
-        <div class="muted">No projection data yet.</div>
+        <div class="muted"><fmt:message key="dash.noProjection"/></div>
       </c:if>
 
       <c:if test="${not empty projectionMonths}">
@@ -339,14 +353,12 @@
         </div>
       </c:if>
     </div>
-  </div>
 
-  <div class="grid two">
     <div class="card">
-      <h3>Top subscriptions</h3>
+      <h3><fmt:message key="dash.topSubscriptions"/></h3>
 
       <c:if test="${empty topSubscriptions}">
-        <div class="muted">No active subscriptions yet.</div>
+        <div class="muted"><fmt:message key="dash.noActiveSubs"/></div>
       </c:if>
 
       <c:if test="${not empty topSubscriptions}">
@@ -354,9 +366,9 @@
           <table>
             <thead>
             <tr>
-              <th>Name</th>
+              <th><fmt:message key="table.name"/></th>
               <th>Category</th>
-              <th>Monthly</th>
+              <th><fmt:message key="dash.monthly"/></th>
             </tr>
             </thead>
             <tbody>
@@ -379,10 +391,10 @@
     </div>
 
     <div class="card">
-      <h3>Due this month</h3>
+      <h3><fmt:message key="dash.dueThisMonth"/></h3>
 
       <c:if test="${empty dueThisMonth}">
-        <div class="muted">No more payments expected this month.</div>
+        <div class="muted"><fmt:message key="dash.noDueThisMonth"/></div>
       </c:if>
 
       <c:if test="${not empty dueThisMonth}">
@@ -390,9 +402,9 @@
           <table>
             <thead>
             <tr>
-              <th>Name</th>
-              <th>Date</th>
-              <th>Amount</th>
+              <th><fmt:message key="table.name"/></th>
+              <th><fmt:message key="dash.date"/></th>
+              <th><fmt:message key="table.amount"/></th>
             </tr>
             </thead>
             <tbody>
@@ -408,71 +420,71 @@
         </div>
       </c:if>
     </div>
-  </div>
 
-  <div class="card">
-    <h3><fmt:message key="dash.activeSubs"/></h3>
+    <div class="card dashboard-full">
+      <h3><fmt:message key="dash.activeSubs"/></h3>
 
-    <c:if test="${empty subs}">
-      <div class="muted"><fmt:message key="dash.noActiveSubs"/></div>
-    </c:if>
+      <c:if test="${empty subs}">
+        <div class="muted"><fmt:message key="dash.noActiveSubs"/></div>
+      </c:if>
 
-    <c:if test="${not empty subs}">
-      <div class="tablewrap" style="margin-top:10px;">
-        <table>
-          <thead>
-          <tr>
-            <th><fmt:message key="table.name"/></th>
-            <th>Category</th>
-            <th><fmt:message key="table.price"/></th>
-            <th><fmt:message key="table.interval"/></th>
-            <th><fmt:message key="table.nextCharge"/></th>
-            <th><fmt:message key="table.monthlyApprox"/></th>
-          </tr>
-          </thead>
-          <tbody>
-          <c:forEach var="s" items="${subs}">
+      <c:if test="${not empty subs}">
+        <div class="tablewrap" style="margin-top:10px;">
+          <table>
+            <thead>
             <tr>
-              <td><c:out value="${s.name}"/></td>
-
-              <td>
-                <c:choose>
-                  <c:when test="${empty s.category || s.category == 'Other'}">-</c:when>
-                  <c:otherwise><c:out value="${s.category}"/></c:otherwise>
-                </c:choose>
-              </td>
-
-              <td>
-                <c:out value="${s.amount}"/>
-                <c:choose>
-                  <c:when test="${pageContext.request.locale.language == 'nb'}"> NOK</c:when>
-                  <c:otherwise> <c:out value="${s.currency}"/></c:otherwise>
-                </c:choose>
-              </td>
-
-              <td><c:out value="${s.interval}"/></td>
-
-              <td>
-                <c:choose>
-                  <c:when test="${empty s.nextChargeDate}">-</c:when>
-                  <c:otherwise><c:out value="${s.nextChargeDate}"/></c:otherwise>
-                </c:choose>
-              </td>
-
-              <td><b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK</td>
+              <th><fmt:message key="table.name"/></th>
+              <th>Category</th>
+              <th><fmt:message key="table.price"/></th>
+              <th><fmt:message key="table.interval"/></th>
+              <th><fmt:message key="table.nextCharge"/></th>
+              <th><fmt:message key="table.monthlyApprox"/></th>
             </tr>
-          </c:forEach>
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+            <c:forEach var="s" items="${subs}">
+              <tr>
+                <td><c:out value="${s.name}"/></td>
 
-      <div style="margin-top:12px;">
-        <span class="pill ok">
-          <fmt:message key="dash.totalMonthly"/>
-          <b><c:out value="${totalMonthlyNok}"/> NOK</b>
-        </span>
-      </div>
-    </c:if>
+                <td>
+                  <c:choose>
+                    <c:when test="${empty s.category || s.category == 'Other'}">-</c:when>
+                    <c:otherwise><c:out value="${s.category}"/></c:otherwise>
+                  </c:choose>
+                </td>
+
+                <td>
+                  <c:out value="${s.amount}"/>
+                  <c:choose>
+                    <c:when test="${pageContext.request.locale.language == 'nb'}"> NOK</c:when>
+                    <c:otherwise> <c:out value="${s.currency}"/></c:otherwise>
+                  </c:choose>
+                </td>
+
+                <td><c:out value="${s.interval}"/></td>
+
+                <td>
+                  <c:choose>
+                    <c:when test="${empty s.nextChargeDate}">-</c:when>
+                    <c:otherwise><c:out value="${s.nextChargeDate}"/></c:otherwise>
+                  </c:choose>
+                </td>
+
+                <td><b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK</td>
+              </tr>
+            </c:forEach>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:12px;">
+          <span class="pill ok">
+            <fmt:message key="dash.totalMonthly"/>
+            <b><c:out value="${totalMonthlyNok}"/> NOK</b>
+          </span>
+        </div>
+      </c:if>
+    </div>
   </div>
 </div>
 
