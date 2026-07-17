@@ -9,7 +9,6 @@ import no.hvl.subscriptionapp.service.ExchangeRateService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -17,6 +16,8 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import org.springframework.context.MessageSource;
+import java.util.Locale;
 
 @Controller
 public class AppController {
@@ -24,19 +25,22 @@ public class AppController {
     private final SubscriptionRepository subscriptionRepo;
     private final LunchFlowConnectionRepository lunchFlowConnectionRepo;
     private final ExchangeRateService fx;
+    private final MessageSource messageSource;
 
     public AppController(
             SubscriptionRepository subscriptionRepo,
             LunchFlowConnectionRepository lunchFlowConnectionRepo,
-            ExchangeRateService fx
+            ExchangeRateService fx,
+            MessageSource messageSource
     ) {
         this.subscriptionRepo = subscriptionRepo;
         this.lunchFlowConnectionRepo = lunchFlowConnectionRepo;
         this.fx = fx;
+        this.messageSource = messageSource;
     }
 
     @GetMapping("/app")
-    public String dashboard(HttpSession session, Model model) {
+    public String dashboard(HttpSession session, Model model, Locale locale) {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
         if (email == null) return "redirect:/login";
 
@@ -175,8 +179,11 @@ public class AppController {
                 finalTotalMonthlyNok,
                 largestCategory,
                 largestSubscription,
-                largestSubscription == null ? null : monthlyNokBySubId.get(largestSubscription.getId()),
-                dueThisMonth.size()
+                largestSubscription == null
+                        ? null
+                        : monthlyNokBySubId.get(largestSubscription.getId()),
+                dueThisMonth.size(),
+                locale
         ));
 
         model.addAttribute("showDevLinks", false);
@@ -307,28 +314,55 @@ public class AppController {
             CategoryInsight largestCategory,
             Subscription largestSubscription,
             BigDecimal largestSubscriptionMonthly,
-            int dueThisMonthCount
+            int dueThisMonthCount,
+            Locale locale
     ) {
         if (count == 0) {
-            return "Add subscriptions manually or import transactions to start getting insights.";
+            return messageSource.getMessage(
+                    "dash.insight.empty",
+                    null,
+                    locale
+            );
         }
 
         if (largestCategory != null && largestCategory.getPercent() >= 50) {
-            return largestCategory.getCategory() + " makes up " +
-                    largestCategory.getPercent() +
-                    "% of your monthly subscription spending.";
+            return messageSource.getMessage(
+                    "dash.insight.categoryShare",
+                    new Object[]{
+                            largestCategory.getCategory(),
+                            largestCategory.getPercent()
+                    },
+                    locale
+            );
         }
 
         if (dueThisMonthCount > 0) {
-            return "You have " + dueThisMonthCount + " subscription payment(s) coming up this month.";
+            return messageSource.getMessage(
+                    "dash.insight.dueThisMonth",
+                    new Object[]{dueThisMonthCount},
+                    locale
+            );
         }
 
         if (largestSubscription != null && largestSubscriptionMonthly != null) {
-            return largestSubscription.getName() + " is your largest subscription at " +
-                    largestSubscriptionMonthly + " NOK/month.";
+            return messageSource.getMessage(
+                    "dash.insight.largestSubscription",
+                    new Object[]{
+                            largestSubscription.getName(),
+                            largestSubscriptionMonthly
+                    },
+                    locale
+            );
         }
 
-        return "You currently spend about " + totalMonthly + " NOK per month across " + count + " subscriptions.";
+        return messageSource.getMessage(
+                "dash.insight.monthlySummary",
+                new Object[]{
+                        totalMonthly,
+                        count
+                },
+                locale
+        );
     }
 
     private LocalDate rollForward(LocalDate next, String interval, LocalDate today) {
