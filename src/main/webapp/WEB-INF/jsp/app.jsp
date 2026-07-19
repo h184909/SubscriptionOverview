@@ -272,6 +272,10 @@
         <fmt:message key="nav.subscriptions"/>
       </a>
 
+      <a href="<c:url value='/app/analytics'/>">
+        <fmt:message key="nav.analytics"/>
+      </a>
+
       <a href="<c:url value='/app/suggestions'/>">
         <fmt:message key="nav.suggestions"/>
       </a>
