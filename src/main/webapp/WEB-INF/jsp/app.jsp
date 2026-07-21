@@ -438,6 +438,50 @@
         </c:choose>
       </div>
 
+       <div class="card">
+               <div class="dash-section-title">
+                 <h3><fmt:message key="nav.subscriptions"/></h3>
+                 <a href="<c:url value='/app/subscriptions'/>">
+                   <fmt:message key="dash.viewAll"/>
+                 </a>
+               </div>
+
+               <c:if test="${empty subs}">
+                 <div class="muted"><fmt:message key="dash.noActiveSubs"/></div>
+               </c:if>
+
+               <c:if test="${not empty subs}">
+                 <div class="tablewrap">
+                   <table class="top-table">
+                     <thead>
+                     <tr>
+                       <th><fmt:message key="table.name"/></th>
+                       <th><fmt:message key="dash.category"/></th>
+                       <th><fmt:message key="table.monthlyApprox"/></th>
+                     </tr>
+                     </thead>
+                     <tbody>
+                     <c:forEach var="s" items="${subs}">
+                       <tr>
+                         <td><b><c:out value="${s.name}"/></b></td>
+                         <td>
+                           <c:choose>
+                             <c:when test="${empty s.category || s.category == 'Other'}">-</c:when>
+                             <c:otherwise><c:out value="${s.category}"/></c:otherwise>
+                           </c:choose>
+                         </td>
+                         <td>
+                           <b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK
+                         </td>
+                       </tr>
+                     </c:forEach>
+                     </tbody>
+                   </table>
+                 </div>
+               </c:if>
+             </div>
+           </div>
+
       <div class="card">
         <div class="dash-section-title">
           <h3><fmt:message key="dash.upcoming.title"/></h3>
@@ -463,50 +507,6 @@
           </c:forEach>
         </div>
       </div>
-
-      <div class="card">
-        <div class="dash-section-title">
-          <h3><fmt:message key="nav.subscriptions"/></h3>
-          <a href="<c:url value='/app/subscriptions'/>">
-            <fmt:message key="dash.viewAll"/>
-          </a>
-        </div>
-
-        <c:if test="${empty subs}">
-          <div class="muted"><fmt:message key="dash.noActiveSubs"/></div>
-        </c:if>
-
-        <c:if test="${not empty subs}">
-          <div class="tablewrap">
-            <table class="top-table">
-              <thead>
-              <tr>
-                <th><fmt:message key="table.name"/></th>
-                <th><fmt:message key="dash.category"/></th>
-                <th><fmt:message key="table.monthlyApprox"/></th>
-              </tr>
-              </thead>
-              <tbody>
-              <c:forEach var="s" items="${subs}">
-                <tr>
-                  <td><b><c:out value="${s.name}"/></b></td>
-                  <td>
-                    <c:choose>
-                      <c:when test="${empty s.category || s.category == 'Other'}">-</c:when>
-                      <c:otherwise><c:out value="${s.category}"/></c:otherwise>
-                    </c:choose>
-                  </td>
-                  <td>
-                    <b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK
-                  </td>
-                </tr>
-              </c:forEach>
-              </tbody>
-            </table>
-          </div>
-        </c:if>
-      </div>
-    </div>
 
     <div class="dash-stack">
 
