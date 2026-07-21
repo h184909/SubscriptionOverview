@@ -74,7 +74,7 @@
     .preview-payment:last-child { border-bottom:0; padding-bottom:0; }
     .preview-payment b { display:block; font-size:9px; }
 
-    .landing-section { padding:78px 0; }
+    .landing-section { padding:78px 0; scroll-margin-top:110px; }
     .landing-section-header { max-width:720px; margin:0 auto 38px; text-align:center; }
     .landing-section-kicker { color:var(--good); font-size:13px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
     .landing-section-title { margin:12px 0 14px; font-size:clamp(32px,4vw,50px); line-height:1.08; letter-spacing:-.035em; }
@@ -102,8 +102,83 @@
     .landing-final-cta { margin:24px 0 70px; padding:38px; border:1px solid rgba(52,211,153,.22); border-radius:24px; background:radial-gradient(circle at top right,rgba(52,211,153,.14),transparent 45%),radial-gradient(circle at bottom left,rgba(96,165,250,.12),transparent 45%),rgba(255,255,255,.025); text-align:center; box-shadow:var(--shadow); }
     .landing-final-cta h2 { margin:0 0 12px; font-size:clamp(30px,4vw,46px); letter-spacing:-.035em; }
     .landing-final-cta p { max-width:680px; margin:0 auto; color:var(--muted); line-height:1.65; }
-    .landing-footer { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:24px 0 34px; border-top:1px solid var(--border); color:var(--muted); font-size:13px; }
-    .landing-footer-links { display:flex; gap:18px; }
+    .landing-footer {
+      margin-top: 24px;
+      padding: 54px 0 34px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .landing-footer-grid {
+      display: grid;
+      grid-template-columns: 1.25fr repeat(3, minmax(150px, .75fr));
+      gap: 42px;
+    }
+
+    .landing-footer-brand {
+      max-width: 320px;
+    }
+
+    .landing-footer-brandline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      font-weight: 800;
+      font-size: 15px;
+    }
+
+    .landing-footer-brand p {
+      margin: 14px 0 0;
+      line-height: 1.65;
+    }
+
+    .landing-footer-column h3 {
+      margin: 0 0 15px;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .landing-footer-links {
+      display: grid;
+      gap: 11px;
+    }
+
+    .landing-footer-links a {
+      width: fit-content;
+      color: #9fb0c8;
+    }
+
+    .landing-footer-links a:hover {
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .landing-footer-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-top: 42px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .landing-footer-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .landing-footer-status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--good);
+      box-shadow: 0 0 0 4px rgba(52,211,153,.10);
+    }
 
     @media (max-width:1050px) {
       .landing-nav-links { display:none; }
@@ -122,7 +197,8 @@
       .preview-grid,.landing-security { grid-template-columns:1fr; }
       .landing-feature-grid,.landing-steps { grid-template-columns:1fr; }
       .landing-security-side { grid-template-columns:1fr; }
-      .landing-footer { align-items:flex-start; flex-direction:column; }
+      .landing-footer-grid { grid-template-columns:1fr 1fr; }
+      .landing-footer-bottom { align-items:flex-start; flex-direction:column; }
     }
     @media (max-width:520px) {
       .landing-shell { width:min(94vw,1240px); }
@@ -136,6 +212,7 @@
       .preview-value { font-size:13px; }
       .landing-section { padding:58px 0; }
       .landing-security-main { flex-direction:column; }
+      .landing-footer-grid { grid-template-columns:1fr; }
     }
   </style>
 </head>
@@ -306,11 +383,68 @@
   </main>
 
   <footer class="landing-footer">
-    <div>© <span id="currentYear"></span> SubscriptionOverview</div>
-    <div class="landing-footer-links">
-      <a href="#features"><fmt:message key="landing.nav.features"/></a>
-      <a href="#how-it-works"><fmt:message key="landing.nav.how"/></a>
-      <a href="#security"><fmt:message key="landing.nav.security"/></a>
+    <div class="landing-footer-grid">
+      <div class="landing-footer-brand">
+        <div class="landing-footer-brandline">
+          <img class="preview-logo"
+               src="<c:url value='/assets/logo.png'/>"
+               alt="" />
+          <span>SubscriptionOverview</span>
+        </div>
+
+        <p>
+          <fmt:message key="landing.footer.description"/>
+        </p>
+      </div>
+
+      <div class="landing-footer-column">
+        <h3><fmt:message key="landing.footer.product"/></h3>
+        <div class="landing-footer-links">
+          <a href="#features"><fmt:message key="landing.nav.features"/></a>
+          <a href="#how-it-works"><fmt:message key="landing.nav.how"/></a>
+          <a href="#security"><fmt:message key="landing.nav.security"/></a>
+          <a href="<c:url value='/auth/register'/>">
+            <fmt:message key="landing.register"/>
+          </a>
+        </div>
+      </div>
+
+      <div class="landing-footer-column">
+        <h3><fmt:message key="landing.footer.support"/></h3>
+        <div class="landing-footer-links">
+          <a href="<c:url value='/support'/>">
+            <fmt:message key="landing.footer.help"/>
+          </a>
+          <a href="<c:url value='/support'/>#faq">
+            <fmt:message key="landing.footer.faq"/>
+          </a>
+          <a href="mailto:support@subscriptionoverview.com">
+            <fmt:message key="landing.footer.contact"/>
+          </a>
+        </div>
+      </div>
+
+      <div class="landing-footer-column">
+        <h3><fmt:message key="landing.footer.legal"/></h3>
+        <div class="landing-footer-links">
+          <a href="<c:url value='/privacy'/>">
+            <fmt:message key="landing.footer.privacy"/>
+          </a>
+          <a href="<c:url value='/terms'/>">
+            <fmt:message key="landing.footer.terms"/>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="landing-footer-bottom">
+      <div>
+        © <span id="currentYear"></span> SubscriptionOverview
+      </div>
+
+      <div class="landing-footer-status">
+        <fmt:message key="landing.footer.status"/>
+      </div>
     </div>
   </footer>
 </div>
