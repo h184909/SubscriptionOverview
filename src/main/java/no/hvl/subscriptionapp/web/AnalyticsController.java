@@ -226,39 +226,44 @@ public class AnalyticsController {
                 .toList();
     }
 
-    private List<MonthAnalytics> buildForecastMonths(List<Subscription> active, LocalDate today, Locale locale) {
+    private List<MonthAnalytics> buildForecastMonths(
+            List<Subscription> active,
+            LocalDate today,
+            Locale locale
+    ) {
         YearMonth firstMonth = YearMonth.from(today);
-        Map<YearMonth, BigDecimal> totals = new LinkedHashMap<>();
-        for (int i = 0; i < 12; i++) totals.put(firstMonth.plusMonths(i), BigDecimal.ZERO);
 
-        LocalDate firstDate = firstMonth.atDay(1);
-        LocalDate lastDate = firstMonth.plusMonths(11).atEndOfMonth();
+        DateTimeFormatter formatter =
+                DateTimeFormatter.ofPattern("MMM yyyy", locale);
 
-        for (Subscription s : active) {
-            if (s.getNextChargeDate() == null || s.getAmount() == null) continue;
-            BigDecimal charge = chargeAmountInNok(s);
-            LocalDate date = s.getNextChargeDate();
-            int guard = 0;
-            while (date.isBefore(firstDate) && guard++ < 500) date = advance(date, s.getInterval());
-            guard = 0;
-            while (!date.isAfter(lastDate) && guard++ < 500) {
-                YearMonth ym = YearMonth.from(date);
-                if (totals.containsKey(ym)) totals.merge(ym, charge, BigDecimal::add);
-                date = advance(date, s.getInterval());
-            }
-        }
+        /*
+         * Grafen viser estimert abonnementskostnad per kalendermåned,
+         * ikke bare trekk som gjenstår etter dagens dato.
+         *
+         * Derfor bruker vi abonnementets månedlige kostnad:
+         * - WEEKLY fordeles til gjennomsnitt per måned
+         * - MONTHLY brukes direkte
+         * - QUARTERLY fordeles over tre måneder
+         * - YEARLY fordeles over tolv måneder
+         */
+        BigDecimal estimatedMonthlyTotal = active.stream()
+                .map(this::monthlyCostInNok)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal max = totals.values().stream().max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM yyyy", locale);
+        estimatedMonthlyTotal = money(estimatedMonthlyTotal);
+
         List<MonthAnalytics> result = new ArrayList<>();
-        for (Map.Entry<YearMonth, BigDecimal> e : totals.entrySet()) {
-            BigDecimal amount = money(e.getValue());
-            int width = max.compareTo(BigDecimal.ZERO) <= 0 ? 4
-                    : amount.multiply(BigDecimal.valueOf(100))
-                    .divide(max, 0, RoundingMode.HALF_UP).intValue();
-            result.add(new MonthAnalytics(e.getKey().atDay(1).format(formatter), amount,
-                    Math.max(4, Math.min(100, width))));
+
+        for (int index = 0; index < 12; index++) {
+            YearMonth month = firstMonth.plusMonths(index);
+
+            result.add(new MonthAnalytics(
+                    month.atDay(1).format(formatter),
+                    estimatedMonthlyTotal,
+                    estimatedMonthlyTotal.compareTo(BigDecimal.ZERO) > 0 ? 100 : 4
+            ));
         }
+
         return result;
     }
 
