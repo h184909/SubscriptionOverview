@@ -1,722 +1,503 @@
 <%@ page contentType="text/html; charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
-
 <!doctype html>
 <html lang="${pageContext.request.locale.language}">
 <head>
   <fmt:setBundle basename="messages" />
-
   <title><fmt:message key="dash.title"/></title>
-
-  <link rel="stylesheet"
-        href="<%=request.getContextPath()%>/assets/app.css" />
-
-  <link rel="icon"
-        href="<c:url value='/favicon.ico'/>" />
-
-  <link rel="icon"
-        type="image/png"
-        sizes="32x32"
-        href="<c:url value='/favicon-32.png'/>" />
-
-  <link rel="icon"
-        type="image/png"
-        sizes="16x16"
-        href="<c:url value='/favicon-16.png'/>" />
-
-  <link rel="apple-touch-icon"
-        href="<c:url value='/apple-touch-icon.png'/>" />
-
+  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
+  <link rel="icon" href="<c:url value='/favicon.ico'/>" />
   <meta name="theme-color" content="#0b1220" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <style>
-    .dashboard-top {
-      display:grid;
-      grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
-      gap:16px;
-      align-items:stretch;
-    }
-
-    .dashboard-top > .card {
-      min-width:0;
-      margin:0;
-    }
-
-    .dashboard-section {
-      margin-top:16px;
-    }
-
-    .dashboard-columns {
-      display:grid;
-      grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
-      gap:16px;
-      align-items:start;
-    }
-
-    .dashboard-column {
+    .dash-hero {
       display:flex;
-      flex-direction:column;
-      gap:16px;
-      min-width:0;
+      justify-content:space-between;
+      gap:20px;
+      align-items:flex-end;
+      margin-top:16px;
+      padding:22px;
     }
 
-    .dashboard-column > .card {
-      min-width:0;
+    .dash-hero h2 {
       margin:0;
+      font-size:clamp(27px,4vw,42px);
+      letter-spacing:-.035em;
     }
 
-    .dashboard-full {
-      width:100%;
-      min-width:0;
-      margin:0;
+    .dash-hero p {
+      margin:8px 0 0;
+      color:var(--muted);
+      line-height:1.55;
+    }
+
+    .dash-quick-actions {
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+      gap:9px;
     }
 
     .dash-kpis {
       display:grid;
-      grid-template-columns:repeat(2, minmax(0, 1fr));
-      gap:12px;
-      margin-top:10px;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:14px;
+      margin-top:16px;
     }
 
-    .kpi-card {
+    .dash-kpi {
       min-width:0;
-      padding:14px;
-      border:1px solid rgba(255,255,255,.14);
-      border-radius:14px;
-      background:rgba(255,255,255,.035);
+      padding:17px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:rgba(255,255,255,.025);
+      box-shadow:var(--shadow);
     }
 
-    .kpi-label {
-      margin-bottom:8px;
+    .dash-kpi-icon {
+      display:grid;
+      place-items:center;
+      width:38px;
+      height:38px;
+      margin-bottom:16px;
+      border-radius:12px;
+      background:rgba(52,211,153,.09);
+      border:1px solid rgba(52,211,153,.20);
+      font-size:18px;
+    }
+
+    .dash-kpi-label {
       color:var(--muted);
-      font-size:13px;
+      font-size:12px;
     }
 
-    .kpi-value {
-      font-size:26px;
+    .dash-kpi-value {
+      margin-top:6px;
+      font-size:25px;
       font-weight:900;
       letter-spacing:-.03em;
       overflow-wrap:anywhere;
     }
 
-    .compact-list {
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      margin-top:12px;
-    }
-
-    .compact-row {
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:12px;
-    }
-
-    .bar-track {
-      height:10px;
+    .dash-kpi-note {
       margin-top:7px;
-      overflow:hidden;
-      border-radius:999px;
-      background:rgba(255,255,255,.08);
+      color:var(--muted);
+      font-size:12px;
     }
 
-    .bar-fill {
-      height:100%;
-      border-radius:999px;
-      background:linear-gradient(
-              90deg,
-              rgba(96,165,250,.95),
-              rgba(52,211,153,.95)
-      );
+    .dash-grid {
+      display:grid;
+      grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
+      gap:16px;
+      margin-top:16px;
+      align-items:start;
     }
 
-    .donut-wrap {
+    .dash-stack {
+      display:grid;
+      gap:16px;
+      min-width:0;
+    }
+
+    .dash-grid .card {
+      margin:0;
+      min-width:0;
+    }
+
+    .dash-section-title {
       display:flex;
       align-items:center;
-      gap:20px;
-      margin-top:14px;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:12px;
     }
 
-    .donut {
-      position:relative;
-      width:135px;
-      height:135px;
-      flex:0 0 135px;
-      border-radius:50%;
-      background:${categoryChartCss};
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);
+    .dash-section-title h3 {
+      margin:0;
     }
 
-    .donut::after {
-      content:"";
-      position:absolute;
-      inset:28px;
-      border-radius:50%;
-      background:var(--card);
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);
+    .next-payment {
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:18px;
+      align-items:center;
+      padding:20px;
+      border:1px solid rgba(96,165,250,.22);
+      border-radius:16px;
+      background:
+        radial-gradient(circle at top right,rgba(96,165,250,.11),transparent 45%),
+        rgba(255,255,255,.02);
     }
 
-    .dashboard-tablewrap {
-      width:100%;
-      overflow-x:auto;
+    .next-payment-name {
+      margin-top:5px;
+      font-size:23px;
+      font-weight:900;
     }
 
-    .dashboard-table {
+    .next-payment-date {
+      color:var(--muted);
+      margin-top:7px;
+    }
+
+    .next-payment-amount {
+      text-align:right;
+      font-size:25px;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    .activity-list,
+    .alert-list,
+    .payment-list {
+      display:grid;
+      gap:10px;
+    }
+
+    .activity-item,
+    .alert-item,
+    .payment-item {
+      display:grid;
+      grid-template-columns:auto 1fr auto;
+      gap:12px;
+      align-items:center;
+      padding:12px;
+      border:1px solid rgba(255,255,255,.075);
+      border-radius:13px;
+      background:rgba(255,255,255,.018);
+    }
+
+    .activity-icon,
+    .alert-icon {
+      display:grid;
+      place-items:center;
+      width:34px;
+      height:34px;
+      border-radius:11px;
+      background:rgba(96,165,250,.10);
+      border:1px solid rgba(96,165,250,.17);
+    }
+
+    .activity-title,
+    .alert-title,
+    .payment-name {
+      font-weight:800;
+    }
+
+    .activity-text,
+    .alert-text,
+    .payment-date {
+      margin-top:3px;
+      color:var(--muted);
+      font-size:12px;
+    }
+
+    .alert-item.warning {
+      border-color:rgba(251,191,36,.25);
+    }
+
+    .alert-item.good {
+      border-color:rgba(52,211,153,.25);
+    }
+
+    .payment-amount {
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    .bank-card {
+      display:grid;
+      gap:12px;
+    }
+
+    .bank-meta {
+      display:grid;
+      gap:5px;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .bank-actions {
+      display:flex;
+      flex-wrap:wrap;
+      gap:9px;
+    }
+
+    .top-table {
       width:100%;
       min-width:0;
       table-layout:fixed;
     }
 
-    .dashboard-table th,
-    .dashboard-table td {
-      vertical-align:middle;
+    .top-table th,
+    .top-table td {
       white-space:normal;
       overflow-wrap:anywhere;
+      vertical-align:middle;
     }
 
-    .top-subscriptions-table th:nth-child(1),
-    .top-subscriptions-table td:nth-child(1) {
-      width:42%;
-    }
-
-    .top-subscriptions-table th:nth-child(2),
-    .top-subscriptions-table td:nth-child(2) {
-      width:32%;
-    }
-
-    .top-subscriptions-table th:nth-child(3),
-    .top-subscriptions-table td:nth-child(3) {
-      width:26%;
+    .top-table th:last-child,
+    .top-table td:last-child {
       text-align:right;
       white-space:nowrap;
     }
 
-    .due-month-table th:nth-child(1),
-    .due-month-table td:nth-child(1) {
-      width:42%;
-    }
+    @media (max-width:980px) {
+      .dash-kpis {
+        grid-template-columns:repeat(2,minmax(0,1fr));
+      }
 
-    .due-month-table th:nth-child(2),
-    .due-month-table td:nth-child(2) {
-      width:28%;
-    }
-
-    .due-month-table th:nth-child(3),
-    .due-month-table td:nth-child(3) {
-      width:30%;
-      text-align:right;
-      white-space:nowrap;
-    }
-
-    .active-subscriptions-table th,
-    .active-subscriptions-table td {
-      white-space:nowrap;
-    }
-
-    @media (max-width:900px) {
-      .dashboard-top,
-      .dashboard-columns {
+      .dash-grid {
         grid-template-columns:1fr;
       }
+    }
 
-      .dash-kpis {
-        grid-template-columns:1fr 1fr;
-      }
-
-      .donut-wrap {
+    @media (max-width:680px) {
+      .dash-hero {
         align-items:flex-start;
         flex-direction:column;
       }
-    }
 
-    @media (max-width:560px) {
+      .dash-quick-actions {
+        justify-content:flex-start;
+      }
+
       .dash-kpis {
         grid-template-columns:1fr;
       }
 
-      .kpi-value {
-        font-size:22px;
+      .next-payment {
+        grid-template-columns:1fr;
+      }
+
+      .next-payment-amount {
+        text-align:left;
+      }
+
+      .activity-item,
+      .alert-item,
+      .payment-item {
+        grid-template-columns:auto 1fr;
+      }
+
+      .payment-amount {
+        grid-column:2;
       }
     }
   </style>
 </head>
 
 <body>
-
 <div class="container">
 
-  <!-- Toppmeny -->
   <div class="topbar">
     <div class="brand">
-      <img class="logo"
-           src="<c:url value='/assets/logo.png'/>"
-           alt="SubscriptionOverview" />
-
+      <img class="logo" src="<c:url value='/assets/logo.png'/>" alt="SubscriptionOverview" />
       <div>
         <h1>SubscriptionOverview</h1>
-        <div class="sub">
-          <fmt:message key="dash.title"/>
-        </div>
+        <div class="sub"><fmt:message key="dash.title"/></div>
       </div>
     </div>
 
     <div class="nav">
-      <a href="<c:url value='/app'/>">
-        <fmt:message key="nav.dashboard"/>
-      </a>
-
-      <a href="<c:url value='/app/subscriptions'/>">
-        <fmt:message key="nav.subscriptions"/>
-      </a>
-
-      <a href="<c:url value='/app/analytics'/>">
-        <fmt:message key="nav.analytics"/>
-      </a>
-
-      <a href="<c:url value='/app/suggestions'/>">
-        <fmt:message key="nav.suggestions"/>
-      </a>
-
-      <a href="<c:url value='/app/transactions/import-csv'/>">
-        <fmt:message key="nav.importCsv"/>
-      </a>
-
-      <a href="<c:url value='/app/profile'/>">
-        <fmt:message key="nav.profile"/>
-      </a>
+      <a href="<c:url value='/app'/>"><fmt:message key="nav.dashboard"/></a>
+      <a href="<c:url value='/app/subscriptions'/>"><fmt:message key="nav.subscriptions"/></a>
+      <a href="<c:url value='/app/analytics'/>"><fmt:message key="nav.analytics"/></a>
+      <a href="<c:url value='/app/suggestions'/>"><fmt:message key="nav.suggestions"/></a>
+      <a href="<c:url value='/app/transactions/import-csv'/>"><fmt:message key="nav.importCsv"/></a>
+      <a href="<c:url value='/app/profile'/>"><fmt:message key="nav.profile"/></a>
 
       <span class="muted" style="margin:0 6px;">|</span>
 
-      <c:url var="toEn" value="/lang">
-        <c:param name="v" value="en"/>
-      </c:url>
-
-      <c:url var="toNb" value="/lang">
-        <c:param name="v" value="nb"/>
-      </c:url>
-
-      <a href="${toEn}"
-         title="English"
-         aria-label="English">🇬🇧</a>
-
-      <a href="${toNb}"
-         title="Norsk"
-         aria-label="Norsk">🇳🇴</a>
+      <c:url var="toEn" value="/lang"><c:param name="v" value="en"/></c:url>
+      <c:url var="toNb" value="/lang"><c:param name="v" value="nb"/></c:url>
+      <a href="${toEn}" title="English" aria-label="English">🇬🇧</a>
+      <a href="${toNb}" title="Norsk" aria-label="Norsk">🇳🇴</a>
     </div>
   </div>
 
-  <!-- Flashmelding -->
   <c:if test="${not empty flashMsg}">
-    <div class="card">
-      <div class="notice flash">
-        <b><c:out value="${flashMsg}"/></b>
-      </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="notice flash"><b><c:out value="${flashMsg}"/></b></div>
     </div>
   </c:if>
 
-  <!-- Øverste rad -->
-  <div class="dashboard-top">
+  <section class="card dash-hero">
+    <div>
+      <h2>
+        <fmt:message key="${greetingKey}"/>,
+        <c:out value="${displayName}"/> 👋
+      </h2>
+      <p><fmt:message key="dash.greeting.lead"/></p>
+    </div>
 
-    <!-- Din status -->
-    <div class="card">
-      <h3><fmt:message key="dash.status"/></h3>
+    <div class="dash-quick-actions">
+      <a class="btn btn-primary" href="<c:url value='/app/suggestions'/>">
+        ✦ <fmt:message key="dash.quick.review"/>
+      </a>
+      <a class="btn" href="<c:url value='/app/subscriptions/new'/>">
+        ＋ <fmt:message key="dash.quick.add"/>
+      </a>
+      <a class="btn" href="<c:url value='/app/analytics'/>">
+        📊 <fmt:message key="dash.quick.analytics"/>
+      </a>
+    </div>
+  </section>
 
-      <div class="muted">
-        <fmt:message key="dash.loggedInAs"/>
-        <b><c:out value="${email}"/></b>
+  <section class="dash-kpis">
+    <div class="dash-kpi">
+      <div class="dash-kpi-icon">💳</div>
+      <div class="dash-kpi-label"><fmt:message key="dash.monthlyCost"/></div>
+      <div class="dash-kpi-value"><c:out value="${totalMonthlyNok}"/> NOK</div>
+      <div class="dash-kpi-note">
+        <c:out value="${activeSubscriptionCount}"/>
+        <fmt:message key="dash.kpi.activeSuffix"/>
       </div>
+    </div>
 
-      <hr class="sep"/>
+    <div class="dash-kpi">
+      <div class="dash-kpi-icon">📅</div>
+      <div class="dash-kpi-label"><fmt:message key="dash.kpi.nextPayment"/></div>
 
       <c:choose>
-        <c:when test="${bankConnected}">
-          <div class="pill ok">
-            ✅ <fmt:message key="dash.bankConnected"/>
-          </div>
-
-          <div class="muted" style="margin-top:10px;">
-            <b>
-              <c:out value="${empty bankInstitutionName
-                      ? 'Lunch Flow'
-                      : bankInstitutionName}"/>
-            </b>
-          </div>
-
-          <c:if test="${not empty bankAccountCount}">
-            <div class="muted" style="margin-top:6px;">
-              <c:out value="${bankAccountCount}"/>
-              <fmt:message key="dash.accounts"/>
-
-              <c:if test="${not empty bankAccountNames}">
-                · <c:out value="${bankAccountNames}"/>
-              </c:if>
-            </div>
-          </c:if>
-
-          <c:if test="${not empty bankLastSynced}">
-            <div class="muted" style="margin-top:6px;">
-              <fmt:message key="dash.lastSynced"/>
-              <b><c:out value="${bankLastSynced}"/></b>
-            </div>
-          </c:if>
-
-          <div style="
-                  display:flex;
-                  align-items:center;
-                  flex-wrap:wrap;
-                  gap:10px;
-                  margin-top:12px;
-          ">
-            <form method="post"
-                  action="<c:url value='/lunchflow/sync'/>"
-                  style="margin:0;">
-
-              <button class="btn btn-primary" type="submit">
-                <fmt:message key="dash.bankSync"/>
-              </button>
-            </form>
-
-            <a class="btn"
-               href="<c:url value='/lunchflow/connect'/>">
-              <fmt:message key="dash.bankReconnect"/>
-            </a>
-
-            <a class="btn"
-               href="<c:url value='/app/profile'/>">
-              <fmt:message key="dash.bankManage"/>
-            </a>
-          </div>
-
-          <div class="muted" style="margin-top:10px;">
-            <fmt:message key="dash.bankConnectedHint"/>
+        <c:when test="${not empty nextPayment}">
+          <div class="dash-kpi-value"><c:out value="${nextPaymentNok}"/> NOK</div>
+          <div class="dash-kpi-note">
+            <c:out value="${nextPayment.name}"/> ·
+            <c:out value="${nextPayment.nextChargeDate}"/>
           </div>
         </c:when>
-
         <c:otherwise>
-          <div class="pill warn">
-            ⚠️ <fmt:message key="dash.bankNotConnected"/>
-          </div>
-
-          <div style="margin-top:10px;">
-            <a class="btn btn-primary"
-               href="<c:url value='/lunchflow/connect'/>">
-              <fmt:message key="dash.bankConnect"/>
-            </a>
-          </div>
-
-          <div class="muted" style="margin-top:10px;">
-            <fmt:message key="dash.bankNotConnectedHint"/>
-          </div>
+          <div class="dash-kpi-value">-</div>
+          <div class="dash-kpi-note"><fmt:message key="dash.kpi.noPayment"/></div>
         </c:otherwise>
       </c:choose>
-
-      <hr class="sep"/>
-
-      <form method="post"
-            action="<c:url value='/logout'/>">
-        <button class="btn btn-danger" type="submit">
-          <fmt:message key="dash.logout"/>
-        </button>
-      </form>
     </div>
 
-    <!-- Oversikt -->
-    <div class="card">
-      <h3><fmt:message key="dash.overview"/></h3>
-
-      <div class="dash-kpis">
-        <div class="kpi-card">
-          <div class="kpi-label">
-            <fmt:message key="dash.monthlyCost"/>
-          </div>
-
-          <div class="kpi-value">
-            <c:out value="${totalMonthlyNok}"/> NOK
-          </div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">
-            <fmt:message key="dash.yearlyEstimate"/>
-          </div>
-
-          <div class="kpi-value">
-            <c:out value="${yearlyTotalNok}"/> NOK
-          </div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">
-            <fmt:message key="dash.activeCount"/>
-          </div>
-
-          <div class="kpi-value">
-            <c:out value="${activeSubscriptionCount}"/>
-          </div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">
-            <fmt:message key="dash.dueNext7"/>
-          </div>
-
-          <div class="kpi-value">
-            <c:out value="${dueSoonCount}"/>
-          </div>
-        </div>
+    <div class="dash-kpi">
+      <div class="dash-kpi-icon">✂️</div>
+      <div class="dash-kpi-label"><fmt:message key="dash.kpi.savedYearly"/></div>
+      <div class="dash-kpi-value"><c:out value="${savedYearlyNok}"/> NOK</div>
+      <div class="dash-kpi-note">
+        <c:out value="${endedSubscriptionCount}"/>
+        <fmt:message key="dash.kpi.endedSuffix"/>
       </div>
-
-      <c:if test="${not empty largestCategory}">
-        <hr class="sep"/>
-
-        <div class="compact-row">
-          <div>
-            <div class="muted">
-              <fmt:message key="dash.largestCategory"/>
-            </div>
-
-            <div style="margin-top:6px;">
-              <b><c:out value="${largestCategory.category}"/></b>
-              <span class="muted">
-                · <c:out value="${largestCategory.percent}"/>%
-              </span>
-            </div>
-          </div>
-
-          <span class="pill ok">
-            <c:out value="${largestCategory.amount}"/>
-            NOK/<fmt:message key="dash.monthShort"/>
-          </span>
-        </div>
-      </c:if>
-
-      <c:if test="${not empty largestSubscription}">
-        <div style="margin-top:14px;">
-          <div class="muted">
-            <fmt:message key="dash.largestSubscription"/>
-          </div>
-
-          <div style="margin-top:6px;">
-            <b><c:out value="${largestSubscription.name}"/></b>
-
-            <span class="muted">
-              · <c:out value="${largestSubscriptionMonthly}"/>
-              NOK/<fmt:message key="dash.monthShort"/>
-            </span>
-          </div>
-        </div>
-      </c:if>
-
-      <c:if test="${not empty smartInsight}">
-        <hr class="sep"/>
-
-        <div class="notice">
-          💡 <c:out value="${smartInsight}"/>
-        </div>
-      </c:if>
     </div>
-  </div>
 
-  <!-- Aktive abonnement flyttet opp -->
-  <div class="dashboard-section">
-    <div class="card dashboard-full">
-      <h3><fmt:message key="dash.activeSubs"/></h3>
-
-      <c:if test="${empty subs}">
-        <div class="muted">
-          <fmt:message key="dash.noActiveSubs"/>
-        </div>
-      </c:if>
-
-      <c:if test="${not empty subs}">
-        <div class="tablewrap" style="margin-top:10px;">
-          <table class="active-subscriptions-table">
-            <thead>
-            <tr>
-              <th><fmt:message key="table.name"/></th>
-              <th><fmt:message key="dash.category"/></th>
-              <th><fmt:message key="table.price"/></th>
-              <th><fmt:message key="table.interval"/></th>
-              <th><fmt:message key="table.nextCharge"/></th>
-              <th><fmt:message key="table.monthlyApprox"/></th>
-            </tr>
-            </thead>
-
-            <tbody>
-            <c:forEach var="s" items="${subs}">
-              <tr>
-                <td>
-                  <b><c:out value="${s.name}"/></b>
-                </td>
-
-                <td>
-                  <c:choose>
-                    <c:when test="${empty s.category
-                            || s.category == 'Other'}">
-                      -
-                    </c:when>
-
-                    <c:otherwise>
-                      <c:out value="${s.category}"/>
-                    </c:otherwise>
-                  </c:choose>
-                </td>
-
-                <td>
-                  <c:out value="${s.amount}"/>
-                  <c:out value="${s.currency}"/>
-                </td>
-
-                <td>
-                  <c:out value="${s.interval}"/>
-                </td>
-
-                <td>
-                  <c:choose>
-                    <c:when test="${empty s.nextChargeDate}">
-                      -
-                    </c:when>
-
-                    <c:otherwise>
-                      <c:out value="${s.nextChargeDate}"/>
-                    </c:otherwise>
-                  </c:choose>
-                </td>
-
-                <td>
-                  <b>
-                    <c:out value="${monthlyNokBySubId[s.id]}"/>
-                  </b>
-                  NOK
-                </td>
-              </tr>
-            </c:forEach>
-            </tbody>
-          </table>
-        </div>
-
-        <div style="margin-top:12px;">
-          <span class="pill ok">
-            <fmt:message key="dash.totalMonthly"/>
-            <b>
-              <c:out value="${totalMonthlyNok}"/> NOK
-            </b>
-          </span>
-        </div>
-      </c:if>
+    <div class="dash-kpi">
+      <div class="dash-kpi-icon">⏳</div>
+      <div class="dash-kpi-label"><fmt:message key="dash.kpi.dueSoon"/></div>
+      <div class="dash-kpi-value"><c:out value="${dueSoonCount}"/></div>
+      <div class="dash-kpi-note"><fmt:message key="dash.kpi.nextSevenDays"/></div>
     </div>
-  </div>
+  </section>
 
-  <!-- Uavhengige kolonner -->
-  <div class="dashboard-section dashboard-columns">
+  <section class="dash-grid">
+    <div class="dash-stack">
 
-    <!-- Venstre kolonne -->
-    <div class="dashboard-column">
-
-      <!-- Kategorifordeling -->
       <div class="card">
-        <h3>
-          <fmt:message key="dash.categoryDistribution"/>
-        </h3>
+        <div class="dash-section-title">
+          <h3><fmt:message key="dash.nextPayment.title"/></h3>
+          <a href="<c:url value='/app/subscriptions'/>">
+            <fmt:message key="dash.viewAll"/>
+          </a>
+        </div>
 
-        <c:if test="${empty categoryInsights}">
-          <div class="muted">
-            <fmt:message key="dash.noCategoryData"/>
-          </div>
-        </c:if>
+        <c:choose>
+          <c:when test="${not empty nextPayment}">
+            <div class="next-payment">
+              <div>
+                <div class="muted"><fmt:message key="dash.nextPayment.upNext"/></div>
+                <div class="next-payment-name"><c:out value="${nextPayment.name}"/></div>
+                <div class="next-payment-date">
+                  <c:choose>
+                    <c:when test="${nextPaymentDays == 0}">
+                      <fmt:message key="dash.date.today"/>
+                    </c:when>
+                    <c:when test="${nextPaymentDays == 1}">
+                      <fmt:message key="dash.date.tomorrow"/>
+                    </c:when>
+                    <c:otherwise>
+                      <c:out value="${nextPayment.nextChargeDate}"/>
+                    </c:otherwise>
+                  </c:choose>
+                </div>
+              </div>
 
-        <c:if test="${not empty categoryInsights}">
-          <div class="donut-wrap">
-            <div class="donut"
-                 aria-label="Category distribution"></div>
-
-            <div style="flex:1; min-width:0;">
-              <div class="compact-list">
-                <c:forEach var="c" items="${categoryInsights}">
-                  <div>
-                    <div class="compact-row">
-                      <div>
-                        <b><c:out value="${c.category}"/></b>
-
-                        <span class="muted">
-                          · <c:out value="${c.percent}"/>%
-                        </span>
-                      </div>
-
-                      <div style="white-space:nowrap;">
-                        <b><c:out value="${c.amount}"/></b> NOK
-                      </div>
-                    </div>
-
-                    <div class="bar-track">
-                      <div class="bar-fill"
-                           style="width:${c.barWidth}%;"></div>
-                    </div>
-                  </div>
-                </c:forEach>
+              <div class="next-payment-amount">
+                <c:out value="${nextPaymentNok}"/> NOK
               </div>
             </div>
-          </div>
-        </c:if>
+          </c:when>
+
+          <c:otherwise>
+            <div class="muted"><fmt:message key="dash.nextPayment.none"/></div>
+          </c:otherwise>
+        </c:choose>
       </div>
 
-      <!-- Største abonnement -->
       <div class="card">
-        <h3>
-          <fmt:message key="dash.topSubscriptions"/>
-        </h3>
+        <div class="dash-section-title">
+          <h3><fmt:message key="dash.upcoming.title"/></h3>
+          <span class="muted"><fmt:message key="dash.upcoming.lead"/></span>
+        </div>
+
+        <c:if test="${empty upcomingPayments}">
+          <div class="muted"><fmt:message key="dash.upcoming.none"/></div>
+        </c:if>
+
+        <div class="payment-list">
+          <c:forEach var="s" items="${upcomingPayments}">
+            <div class="payment-item">
+              <div class="activity-icon">◷</div>
+              <div>
+                <div class="payment-name"><c:out value="${s.name}"/></div>
+                <div class="payment-date"><c:out value="${s.nextChargeDate}"/></div>
+              </div>
+              <div class="payment-amount">
+                <c:out value="${s.amount}"/> <c:out value="${s.currency}"/>
+              </div>
+            </div>
+          </c:forEach>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="dash-section-title">
+          <h3><fmt:message key="dash.topSubscriptions"/></h3>
+          <a href="<c:url value='/app/analytics'/>">
+            <fmt:message key="dash.openAnalytics"/>
+          </a>
+        </div>
 
         <c:if test="${empty topSubscriptions}">
-          <div class="muted">
-            <fmt:message key="dash.noActiveSubs"/>
-          </div>
+          <div class="muted"><fmt:message key="dash.noActiveSubs"/></div>
         </c:if>
 
         <c:if test="${not empty topSubscriptions}">
-          <div class="dashboard-tablewrap"
-               style="margin-top:10px;">
-
-            <table class="
-                    dashboard-table
-                    top-subscriptions-table
-            ">
+          <div class="tablewrap">
+            <table class="top-table">
               <thead>
               <tr>
                 <th><fmt:message key="table.name"/></th>
                 <th><fmt:message key="dash.category"/></th>
-                <th><fmt:message key="dash.monthly"/></th>
+                <th><fmt:message key="table.monthlyApprox"/></th>
               </tr>
               </thead>
-
               <tbody>
-              <c:forEach var="s"
-                         items="${topSubscriptions}">
+              <c:forEach var="s" items="${topSubscriptions}">
                 <tr>
-                  <td>
-                    <b><c:out value="${s.name}"/></b>
-                  </td>
-
+                  <td><b><c:out value="${s.name}"/></b></td>
                   <td>
                     <c:choose>
-                      <c:when test="${empty s.category
-                              || s.category == 'Other'}">
-                        -
-                      </c:when>
-
-                      <c:otherwise>
-                        <c:out value="${s.category}"/>
-                      </c:otherwise>
+                      <c:when test="${empty s.category || s.category == 'Other'}">-</c:when>
+                      <c:otherwise><c:out value="${s.category}"/></c:otherwise>
                     </c:choose>
                   </td>
-
                   <td>
-                    <b>
-                      <c:out value="${monthlyNokBySubId[s.id]}"/>
-                    </b>
-                    NOK
+                    <b><c:out value="${monthlyNokBySubId[s.id]}"/></b> NOK
                   </td>
                 </tr>
               </c:forEach>
@@ -727,100 +508,123 @@
       </div>
     </div>
 
-    <!-- Høyre kolonne -->
-    <div class="dashboard-column">
+    <div class="dash-stack">
 
-      <!-- Prognose -->
       <div class="card">
-        <h3>
-          <fmt:message key="dash.projection"/>
-        </h3>
+        <div class="dash-section-title">
+          <h3><fmt:message key="dash.alerts.title"/></h3>
+          <span class="pill"><c:out value="${alerts.size()}"/></span>
+        </div>
 
-        <c:if test="${empty projectionMonths}">
-          <div class="muted">
-            <fmt:message key="dash.noProjection"/>
-          </div>
-        </c:if>
-
-        <c:if test="${not empty projectionMonths}">
-          <div class="compact-list">
-            <c:forEach var="m"
-                       items="${projectionMonths}">
+        <div class="alert-list">
+          <c:forEach var="alert" items="${alerts}">
+            <div class="alert-item ${alert.type}">
+              <div class="alert-icon"><c:out value="${alert.icon}"/></div>
               <div>
-                <div class="compact-row">
-                  <div>
-                    <b><c:out value="${m.label}"/></b>
-                  </div>
-
-                  <div style="white-space:nowrap;">
-                    <b><c:out value="${m.amount}"/></b> NOK
-                  </div>
-                </div>
-
-                <div class="bar-track">
-                  <div class="bar-fill"
-                       style="width:${m.barWidth}%;"></div>
-                </div>
+                <div class="alert-title"><c:out value="${alert.title}"/></div>
+                <div class="alert-text"><c:out value="${alert.text}"/></div>
               </div>
-            </c:forEach>
-          </div>
-        </c:if>
+            </div>
+          </c:forEach>
+        </div>
       </div>
 
-      <!-- Trekkes denne måneden -->
       <div class="card">
-        <h3>
-          <fmt:message key="dash.dueThisMonth"/>
-        </h3>
+        <div class="dash-section-title">
+          <h3><fmt:message key="dash.activity.title"/></h3>
+          <span class="muted"><fmt:message key="dash.activity.lead"/></span>
+        </div>
 
-        <c:if test="${empty dueThisMonth}">
-          <div class="muted">
-            <fmt:message key="dash.noDueThisMonth"/>
-          </div>
-        </c:if>
+        <div class="activity-list">
+          <c:forEach var="activity" items="${recentActivity}">
+            <div class="activity-item">
+              <div class="activity-icon"><c:out value="${activity.icon}"/></div>
+              <div>
+                <div class="activity-title"><c:out value="${activity.title}"/></div>
+                <div class="activity-text"><c:out value="${activity.text}"/></div>
+              </div>
+            </div>
+          </c:forEach>
+        </div>
+      </div>
 
-        <c:if test="${not empty dueThisMonth}">
-          <div class="dashboard-tablewrap"
-               style="margin-top:10px;">
+      <div class="card">
+        <div class="dash-section-title">
+          <h3><fmt:message key="dash.bank.title"/></h3>
+          <c:choose>
+            <c:when test="${bankConnected}">
+              <span class="pill ok">✓ <fmt:message key="dash.bankConnected"/></span>
+            </c:when>
+            <c:otherwise>
+              <span class="pill warn">! <fmt:message key="dash.bankNotConnected"/></span>
+            </c:otherwise>
+          </c:choose>
+        </div>
 
-            <table class="
-                    dashboard-table
-                    due-month-table
-            ">
-              <thead>
-              <tr>
-                <th><fmt:message key="table.name"/></th>
-                <th><fmt:message key="dash.date"/></th>
-                <th><fmt:message key="table.amount"/></th>
-              </tr>
-              </thead>
+        <div class="bank-card">
+          <c:choose>
+            <c:when test="${bankConnected}">
+              <div class="bank-meta">
+                <b><c:out value="${empty bankInstitutionName ? 'Lunch Flow' : bankInstitutionName}"/></b>
+                <c:if test="${not empty bankAccountCount}">
+                  <span>
+                    <c:out value="${bankAccountCount}"/> <fmt:message key="dash.accounts"/>
+                    <c:if test="${not empty bankAccountNames}">
+                      · <c:out value="${bankAccountNames}"/>
+                    </c:if>
+                  </span>
+                </c:if>
+                <c:if test="${not empty bankLastSynced}">
+                  <span>
+                    <fmt:message key="dash.lastSynced"/>
+                    <b><c:out value="${bankLastSynced}"/></b>
+                  </span>
+                </c:if>
+              </div>
 
-              <tbody>
-              <c:forEach var="s"
-                         items="${dueThisMonth}">
-                <tr>
-                  <td>
-                    <b><c:out value="${s.name}"/></b>
-                  </td>
+              <div class="bank-actions">
+                <form method="post" action="<c:url value='/lunchflow/sync'/>" style="margin:0;">
+                  <button class="btn btn-primary" type="submit">
+                    <fmt:message key="dash.bankSync"/>
+                  </button>
+                </form>
 
-                  <td>
-                    <c:out value="${s.nextChargeDate}"/>
-                  </td>
+                <a class="btn" href="<c:url value='/app/profile'/>">
+                  <fmt:message key="dash.bankManage"/>
+                </a>
+              </div>
+            </c:when>
 
-                  <td>
-                    <b><c:out value="${s.amount}"/></b>
-                    <c:out value="${s.currency}"/>
-                  </td>
-                </tr>
-              </c:forEach>
-              </tbody>
-            </table>
-          </div>
-        </c:if>
+            <c:otherwise>
+              <div class="muted"><fmt:message key="dash.bankNotConnectedHint"/></div>
+              <div>
+                <a class="btn btn-primary" href="<c:url value='/lunchflow/connect'/>">
+                  <fmt:message key="dash.bankConnect"/>
+                </a>
+              </div>
+            </c:otherwise>
+          </c:choose>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="dash-section-title">
+          <h3><fmt:message key="dash.account.title"/></h3>
+        </div>
+
+        <div class="muted">
+          <fmt:message key="dash.loggedInAs"/>
+          <b><c:out value="${email}"/></b>
+        </div>
+
+        <form method="post" action="<c:url value='/logout'/>" style="margin-top:14px;">
+          <button class="btn btn-danger" type="submit">
+            <fmt:message key="dash.logout"/>
+          </button>
+        </form>
       </div>
     </div>
-  </div>
+  </section>
 </div>
-
 </body>
 </html>

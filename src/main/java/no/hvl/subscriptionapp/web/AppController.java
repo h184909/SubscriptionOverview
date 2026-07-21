@@ -6,18 +6,19 @@ import no.hvl.subscriptionapp.domain.Subscription;
 import no.hvl.subscriptionapp.repository.LunchFlowConnectionRepository;
 import no.hvl.subscriptionapp.repository.SubscriptionRepository;
 import no.hvl.subscriptionapp.service.ExchangeRateService;
+import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.YearMonth;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
-import org.springframework.context.MessageSource;
-import java.util.Locale;
 
 @Controller
 public class AppController {
@@ -44,376 +45,287 @@ public class AppController {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
         if (email == null) return "redirect:/login";
 
-        model.addAttribute("email", email);
-
-        LunchFlowConnection connection =
-                lunchFlowConnectionRepo.findFirstByUserEmailOrderByUpdatedAtDesc(email).orElse(null);
-
-        model.addAttribute("bankConnected", connection != null);
-        model.addAttribute("bankInstitutionName", connection != null ? connection.getInstitutionName() : null);
-        model.addAttribute("bankAccountCount", connection != null ? connection.getAccountCount() : null);
-        model.addAttribute("bankAccountNames", connection != null ? connection.getAccountNames() : null);
-
-        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-        ZoneId userZone = ZoneId.of("Europe/Oslo");
-
-        model.addAttribute(
-                "bankLastSynced",
-                connection != null && connection.getLastSyncedAt() != null
-                        ? connection.getLastSyncedAt().atZoneSameInstant(userZone).format(dateTimeFormatter)
-                        : null
-        );
-
-        List<Subscription> allSubs = subscriptionRepo.findByUserEmailOrderByCreatedAtDesc(email);
-
         LocalDate today = LocalDate.now();
+
+        model.addAttribute("email", email);
+        model.addAttribute("displayName", displayNameFromEmail(email));
+        model.addAttribute("greetingKey", greetingKey(LocalDateTime.now().getHour()));
+
+        LunchFlowConnection connection = lunchFlowConnectionRepo
+                .findFirstByUserEmailOrderByUpdatedAtDesc(email)
+                .orElse(null);
+        addBankModel(model, connection);
+
+        List<Subscription> all = subscriptionRepo.findByUserEmailOrderByCreatedAtDesc(email);
+        rollForwardChargeDates(all, today);
+
+        List<Subscription> active = all.stream().filter(Subscription::isActive).toList();
+        List<Subscription> ended = all.stream().filter(s -> !s.isActive()).toList();
+
+        Map<UUID, BigDecimal> monthlyNokBySubId = new LinkedHashMap<>();
+        for (Subscription s : all) {
+            monthlyNokBySubId.put(s.getId(), monthlyCostInNok(s));
+        }
+
+        BigDecimal totalMonthlyNok = sumMonthly(active, monthlyNokBySubId);
+        BigDecimal yearlyTotalNok = money(totalMonthlyNok.multiply(BigDecimal.valueOf(12)));
+        BigDecimal savedMonthlyNok = sumMonthly(ended, monthlyNokBySubId);
+        BigDecimal savedYearlyNok = money(savedMonthlyNok.multiply(BigDecimal.valueOf(12)));
+
+        List<Subscription> dueSoon = active.stream()
+                .filter(s -> s.getNextChargeDate() != null)
+                .filter(s -> !s.getNextChargeDate().isBefore(today))
+                .filter(s -> !s.getNextChargeDate().isAfter(today.plusDays(7)))
+                .sorted(Comparator.comparing(Subscription::getNextChargeDate))
+                .toList();
+
+        List<Subscription> upcoming = active.stream()
+                .filter(s -> s.getNextChargeDate() != null)
+                .filter(s -> !s.getNextChargeDate().isBefore(today))
+                .sorted(Comparator.comparing(Subscription::getNextChargeDate))
+                .limit(6)
+                .toList();
+
+        Subscription nextPayment = upcoming.isEmpty() ? null : upcoming.get(0);
+        BigDecimal nextPaymentNok = nextPayment == null ? null : chargeAmountInNok(nextPayment);
+        Long nextPaymentDays = nextPayment == null ? null
+                : ChronoUnit.DAYS.between(today, nextPayment.getNextChargeDate());
+
+        List<Subscription> topSubscriptions = active.stream()
+                .sorted((a, b) -> monthlyNokBySubId.getOrDefault(b.getId(), BigDecimal.ZERO)
+                        .compareTo(monthlyNokBySubId.getOrDefault(a.getId(), BigDecimal.ZERO)))
+                .limit(4)
+                .toList();
+
+        model.addAttribute("subs", active);
+        model.addAttribute("activeSubscriptionCount", active.size());
+        model.addAttribute("endedSubscriptionCount", ended.size());
+        model.addAttribute("totalMonthlyNok", totalMonthlyNok);
+        model.addAttribute("yearlyTotalNok", yearlyTotalNok);
+        model.addAttribute("savedMonthlyNok", savedMonthlyNok);
+        model.addAttribute("savedYearlyNok", savedYearlyNok);
+        model.addAttribute("monthlyNokBySubId", monthlyNokBySubId);
+        model.addAttribute("dueSoon", dueSoon);
+        model.addAttribute("dueSoonCount", dueSoon.size());
+        model.addAttribute("upcomingPayments", upcoming);
+        model.addAttribute("nextPayment", nextPayment);
+        model.addAttribute("nextPaymentNok", nextPaymentNok);
+        model.addAttribute("nextPaymentDays", nextPaymentDays);
+        model.addAttribute("topSubscriptions", topSubscriptions);
+        model.addAttribute("recentActivity", buildRecentActivity(active, ended, connection, locale));
+        model.addAttribute("alerts", buildAlerts(active, dueSoon, savedMonthlyNok, locale));
+        model.addAttribute("showDevLinks", false);
+
+        return "app";
+    }
+
+    private void addBankModel(Model model, LunchFlowConnection connection) {
+        model.addAttribute("bankConnected", connection != null);
+        model.addAttribute("bankInstitutionName", connection == null ? null : connection.getInstitutionName());
+        model.addAttribute("bankAccountCount", connection == null ? null : connection.getAccountCount());
+        model.addAttribute("bankAccountNames", connection == null ? null : connection.getAccountNames());
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        ZoneId zone = ZoneId.of("Europe/Oslo");
+
+        model.addAttribute("bankLastSynced",
+                connection != null && connection.getLastSyncedAt() != null
+                        ? connection.getLastSyncedAt().atZoneSameInstant(zone).format(formatter)
+                        : null);
+    }
+
+    private List<DashboardActivity> buildRecentActivity(
+            List<Subscription> active,
+            List<Subscription> ended,
+            LunchFlowConnection connection,
+            Locale locale
+    ) {
+        List<DashboardActivity> result = new ArrayList<>();
+
+        if (connection != null && connection.getLastSyncedAt() != null) {
+            result.add(new DashboardActivity("↻",
+                    messageSource.getMessage("dash.activity.synced.title", null, locale),
+                    messageSource.getMessage("dash.activity.synced.text", null, locale)));
+        }
+
+        active.stream()
+                .filter(s -> s.getCreatedAt() != null)
+                .sorted(Comparator.comparing(Subscription::getCreatedAt).reversed())
+                .limit(3)
+                .forEach(s -> result.add(new DashboardActivity("＋",
+                        messageSource.getMessage("dash.activity.added.title",
+                                new Object[]{s.getName()}, locale),
+                        s.getCreatedAt().toLocalDate().toString())));
+
+        ended.stream()
+                .filter(s -> s.getCreatedAt() != null)
+                .sorted(Comparator.comparing(Subscription::getCreatedAt).reversed())
+                .limit(2)
+                .forEach(s -> result.add(new DashboardActivity("✓",
+                        messageSource.getMessage("dash.activity.ended.title",
+                                new Object[]{s.getName()}, locale),
+                        messageSource.getMessage("dash.activity.ended.text", null, locale))));
+
+        if (result.isEmpty()) {
+            result.add(new DashboardActivity("✦",
+                    messageSource.getMessage("dash.activity.empty.title", null, locale),
+                    messageSource.getMessage("dash.activity.empty.text", null, locale)));
+        }
+
+        return result.stream().limit(6).toList();
+    }
+
+    private List<DashboardAlert> buildAlerts(
+            List<Subscription> active,
+            List<Subscription> dueSoon,
+            BigDecimal savedMonthlyNok,
+            Locale locale
+    ) {
+        List<DashboardAlert> result = new ArrayList<>();
+
+        if (!dueSoon.isEmpty()) {
+            result.add(new DashboardAlert("warning", "📅",
+                    messageSource.getMessage("dash.alert.dueSoon.title",
+                            new Object[]{dueSoon.size()}, locale),
+                    messageSource.getMessage("dash.alert.dueSoon.text", null, locale)));
+        }
+
+        long missingCategory = active.stream()
+                .filter(s -> s.getCategory() == null || s.getCategory().isBlank()
+                        || "Other".equalsIgnoreCase(s.getCategory().trim()))
+                .count();
+
+        if (missingCategory > 0) {
+            result.add(new DashboardAlert("info", "🏷",
+                    messageSource.getMessage("dash.alert.category.title",
+                            new Object[]{missingCategory}, locale),
+                    messageSource.getMessage("dash.alert.category.text", null, locale)));
+        }
+
+        if (savedMonthlyNok.compareTo(BigDecimal.ZERO) > 0) {
+            result.add(new DashboardAlert("good", "💰",
+                    messageSource.getMessage("dash.alert.saved.title",
+                            new Object[]{savedMonthlyNok}, locale),
+                    messageSource.getMessage("dash.alert.saved.text", null, locale)));
+        }
+
+        if (active.isEmpty()) {
+            result.add(new DashboardAlert("info", "✦",
+                    messageSource.getMessage("dash.alert.empty.title", null, locale),
+                    messageSource.getMessage("dash.alert.empty.text", null, locale)));
+        }
+
+        return result.stream().limit(4).toList();
+    }
+
+    private void rollForwardChargeDates(List<Subscription> subscriptions, LocalDate today) {
         boolean changed = false;
 
-        for (Subscription s : allSubs) {
-            if (!s.isActive()) continue;
-            if (s.getNextChargeDate() == null) continue;
+        for (Subscription s : subscriptions) {
+            if (!s.isActive() || s.getNextChargeDate() == null) continue;
 
-            LocalDate next = s.getNextChargeDate();
-            if (!next.isAfter(today)) {
-                LocalDate rolled = rollForward(next, s.getInterval(), today);
-                if (!rolled.equals(next)) {
+            LocalDate current = s.getNextChargeDate();
+            if (!current.isAfter(today)) {
+                LocalDate rolled = rollForward(current, s.getInterval(), today);
+                if (!rolled.equals(current)) {
                     s.setNextChargeDate(rolled);
                     changed = true;
                 }
             }
         }
 
-        if (changed) subscriptionRepo.saveAll(allSubs);
-
-        List<Subscription> activeSubs = allSubs.stream()
-                .filter(Subscription::isActive)
-                .toList();
-
-        model.addAttribute("subs", activeSubs);
-        model.addAttribute("activeSubscriptionCount", activeSubs.size());
-
-        LocalDate end = today.plusDays(7);
-        List<Subscription> dueSoon = activeSubs.stream()
-                .filter(s -> s.getNextChargeDate() != null)
-                .filter(s -> !s.getNextChargeDate().isBefore(today))
-                .filter(s -> !s.getNextChargeDate().isAfter(end))
-                .sorted(Comparator.comparing(Subscription::getNextChargeDate))
-                .toList();
-
-        model.addAttribute("dueSoon", dueSoon);
-        model.addAttribute("dueSoonCount", dueSoon.size());
-
-        LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
-        List<Subscription> dueThisMonth = activeSubs.stream()
-                .filter(s -> s.getNextChargeDate() != null)
-                .filter(s -> !s.getNextChargeDate().isBefore(today))
-                .filter(s -> !s.getNextChargeDate().isAfter(monthEnd))
-                .sorted(Comparator.comparing(Subscription::getNextChargeDate))
-                .toList();
-
-        model.addAttribute("dueThisMonth", dueThisMonth);
-
-        BigDecimal totalMonthlyNok = BigDecimal.ZERO;
-        Map<String, BigDecimal> categoryTotals = new HashMap<>();
-        Map<UUID, BigDecimal> monthlyNokBySubId = new HashMap<>();
-
-        for (Subscription s : activeSubs) {
-            BigDecimal monthly = s.getMonthlyCost();
-            if (monthly == null) continue;
-
-            BigDecimal inNok = fx.convertToNok(monthly, s.getCurrency());
-            if (inNok == null) continue;
-
-            inNok = inNok.setScale(2, RoundingMode.HALF_UP);
-            totalMonthlyNok = totalMonthlyNok.add(inNok);
-            monthlyNokBySubId.put(s.getId(), inNok);
-
-            String category = cleanCategory(s.getCategory());
-            categoryTotals.put(category, categoryTotals.getOrDefault(category, BigDecimal.ZERO).add(inNok));
-        }
-
-        BigDecimal finalTotalMonthlyNok = totalMonthlyNok.setScale(2, RoundingMode.HALF_UP);
-        BigDecimal yearlyTotalNok = finalTotalMonthlyNok.multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP);
-
-        model.addAttribute("totalMonthlyNok", finalTotalMonthlyNok);
-        model.addAttribute("yearlyTotalNok", yearlyTotalNok);
-        model.addAttribute("monthlyNokBySubId", monthlyNokBySubId);
-
-        List<CategoryInsight> categoryInsights = categoryTotals.entrySet().stream()
-                .map(e -> {
-                    int p = percent(e.getValue(), finalTotalMonthlyNok);
-                    return new CategoryInsight(
-                            e.getKey(),
-                            e.getValue().setScale(2, RoundingMode.HALF_UP),
-                            p,
-                            barWidth(p)
-                    );
-                })
-                .sorted(Comparator.comparing(CategoryInsight::getAmount).reversed())
-                .toList();
-
-        model.addAttribute("categoryInsights", categoryInsights);
-        model.addAttribute("categoryChartCss", buildCategoryChartCss(categoryInsights));
-
-        CategoryInsight largestCategory = categoryInsights.isEmpty() ? null : categoryInsights.get(0);
-        model.addAttribute("largestCategory", largestCategory);
-
-        List<Subscription> topSubscriptions = activeSubs.stream()
-                .sorted((a, b) -> monthlyNokBySubId.getOrDefault(b.getId(), BigDecimal.ZERO)
-                        .compareTo(monthlyNokBySubId.getOrDefault(a.getId(), BigDecimal.ZERO)))
-                .limit(5)
-                .toList();
-
-        model.addAttribute("topSubscriptions", topSubscriptions);
-
-        Subscription largestSubscription = topSubscriptions.isEmpty() ? null : topSubscriptions.get(0);
-        model.addAttribute("largestSubscription", largestSubscription);
-        model.addAttribute(
-                "largestSubscriptionMonthly",
-                largestSubscription == null ? null : monthlyNokBySubId.get(largestSubscription.getId())
-        );
-
-        model.addAttribute("projectionMonths", buildProjectionMonths(activeSubs, today));
-        model.addAttribute("smartInsight", buildSmartInsight(
-                activeSubs.size(),
-                finalTotalMonthlyNok,
-                largestCategory,
-                largestSubscription,
-                largestSubscription == null
-                        ? null
-                        : monthlyNokBySubId.get(largestSubscription.getId()),
-                dueThisMonth.size(),
-                locale
-        ));
-
-        model.addAttribute("showDevLinks", false);
-
-        return "app";
+        if (changed) subscriptionRepo.saveAll(subscriptions);
     }
 
-    private List<MonthProjection> buildProjectionMonths(List<Subscription> activeSubs, LocalDate today) {
-        YearMonth startMonth = YearMonth.from(today);
-        Map<YearMonth, BigDecimal> totals = new LinkedHashMap<>();
+    private String displayNameFromEmail(String email) {
+        String local = email == null ? "" : email.split("@")[0]
+                .replace(".", " ").replace("_", " ").replace("-", " ").trim();
+        if (local.isBlank()) return email == null ? "" : email;
 
-        for (int i = 0; i < 6; i++) {
-            totals.put(startMonth.plusMonths(i), BigDecimal.ZERO);
+        StringBuilder result = new StringBuilder();
+        for (String word : local.split("\\s+")) {
+            if (!result.isEmpty()) result.append(" ");
+            result.append(Character.toUpperCase(word.charAt(0)));
+            if (word.length() > 1) result.append(word.substring(1));
         }
-
-        LocalDate startDate = startMonth.atDay(1);
-        LocalDate endDate = startMonth.plusMonths(5).atEndOfMonth();
-
-        for (Subscription s : activeSubs) {
-            if (s.getNextChargeDate() == null || s.getAmount() == null) continue;
-
-            BigDecimal chargeNok = fx.convertToNok(s.getAmount(), s.getCurrency());
-            if (chargeNok == null) continue;
-
-            LocalDate chargeDate = s.getNextChargeDate();
-
-            while (chargeDate.isBefore(startDate)) {
-                chargeDate = advance(chargeDate, s.getInterval());
-            }
-
-            int guard = 0;
-            while (!chargeDate.isAfter(endDate) && guard++ < 100) {
-                YearMonth ym = YearMonth.from(chargeDate);
-                if (totals.containsKey(ym)) {
-                    totals.put(ym, totals.get(ym).add(chargeNok));
-                }
-                chargeDate = advance(chargeDate, s.getInterval());
-            }
-        }
-
-        BigDecimal max = totals.values().stream()
-                .max(BigDecimal::compareTo)
-                .orElse(BigDecimal.ZERO);
-
-        DateTimeFormatter labelFmt = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);
-
-        List<MonthProjection> result = new ArrayList<>();
-        for (var e : totals.entrySet()) {
-            BigDecimal amount = e.getValue().setScale(2, RoundingMode.HALF_UP);
-            int width = max.compareTo(BigDecimal.ZERO) <= 0
-                    ? 4
-                    : amount.multiply(BigDecimal.valueOf(100)).divide(max, 0, RoundingMode.HALF_UP).intValue();
-
-            result.add(new MonthProjection(
-                    e.getKey().atDay(1).format(labelFmt),
-                    amount,
-                    Math.max(4, Math.min(100, width))
-            ));
-        }
-
-        return result;
+        return result.toString();
     }
 
-    private String buildCategoryChartCss(List<CategoryInsight> insights) {
-        if (insights == null || insights.isEmpty()) {
-            return "conic-gradient(rgba(255,255,255,.12) 0 100%)";
-        }
-
-        StringBuilder sb = new StringBuilder("conic-gradient(");
-        int current = 0;
-
-        for (int i = 0; i < insights.size(); i++) {
-            CategoryInsight c = insights.get(i);
-            int next = (i == insights.size() - 1) ? 100 : Math.min(100, current + c.getPercent());
-
-            if (i > 0) sb.append(", ");
-            sb.append(colorForCategory(c.getCategory()))
-                    .append(" ")
-                    .append(current)
-                    .append("% ")
-                    .append(next)
-                    .append("%");
-
-            current = next;
-        }
-
-        sb.append(")");
-        return sb.toString();
+    private String greetingKey(int hour) {
+        if (hour < 12) return "dash.greeting.morning";
+        if (hour < 18) return "dash.greeting.afternoon";
+        return "dash.greeting.evening";
     }
 
-    private String colorForCategory(String category) {
-        if (category == null) return "#64748b";
+    private BigDecimal sumMonthly(List<Subscription> subs, Map<UUID, BigDecimal> amounts) {
+        return money(subs.stream()
+                .map(s -> amounts.getOrDefault(s.getId(), BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+    }
 
-        return switch (category) {
-            case "Entertainment" -> "#60a5fa";
-            case "Utilities" -> "#34d399";
-            case "Telecom" -> "#f59e0b";
-            case "Health & Fitness" -> "#fb7185";
-            case "News" -> "#a78bfa";
-            case "Shopping & Food" -> "#f97316";
-            case "Uncategorized" -> "#64748b";
-            default -> "#94a3b8";
+    private BigDecimal monthlyCostInNok(Subscription s) {
+        if (s == null || s.getMonthlyCost() == null) return money(BigDecimal.ZERO);
+        BigDecimal converted = fx.convertToNok(s.getMonthlyCost(), s.getCurrency());
+        return money(converted == null ? BigDecimal.ZERO : converted);
+    }
+
+    private BigDecimal chargeAmountInNok(Subscription s) {
+        if (s == null || s.getAmount() == null) return money(BigDecimal.ZERO);
+        BigDecimal converted = fx.convertToNok(s.getAmount(), s.getCurrency());
+        return money(converted == null ? BigDecimal.ZERO : converted);
+    }
+
+    private BigDecimal money(BigDecimal amount) {
+        return (amount == null ? BigDecimal.ZERO : amount).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private LocalDate rollForward(LocalDate date, String interval, LocalDate today) {
+        int guard = 0;
+        while (!date.isAfter(today) && guard++ < 500) date = advance(date, interval);
+        return date;
+    }
+
+    private LocalDate advance(LocalDate date, String interval) {
+        return switch (interval == null ? "MONTHLY" : interval.trim().toUpperCase(Locale.ROOT)) {
+            case "WEEKLY" -> date.plusWeeks(1);
+            case "QUARTERLY" -> date.plusMonths(3);
+            case "YEARLY" -> date.plusYears(1);
+            default -> date.plusMonths(1);
         };
     }
 
-    private String cleanCategory(String category) {
-        if (category == null || category.isBlank() || "Other".equalsIgnoreCase(category.trim())) {
-            return "Uncategorized";
+    public static class DashboardActivity {
+        private final String icon;
+        private final String title;
+        private final String text;
+
+        public DashboardActivity(String icon, String title, String text) {
+            this.icon = icon;
+            this.title = title;
+            this.text = text;
         }
-        return category.trim();
+
+        public String getIcon() { return icon; }
+        public String getTitle() { return title; }
+        public String getText() { return text; }
     }
 
-    private int percent(BigDecimal part, BigDecimal total) {
-        if (part == null || total == null || total.compareTo(BigDecimal.ZERO) <= 0) return 0;
-        return part.multiply(BigDecimal.valueOf(100))
-                .divide(total, 0, RoundingMode.HALF_UP)
-                .intValue();
-    }
+    public static class DashboardAlert {
+        private final String type;
+        private final String icon;
+        private final String title;
+        private final String text;
 
-    private int barWidth(int percent) {
-        if (percent <= 0) return 4;
-        return Math.max(4, Math.min(100, percent));
-    }
-
-    private String buildSmartInsight(
-            int count,
-            BigDecimal totalMonthly,
-            CategoryInsight largestCategory,
-            Subscription largestSubscription,
-            BigDecimal largestSubscriptionMonthly,
-            int dueThisMonthCount,
-            Locale locale
-    ) {
-        if (count == 0) {
-            return messageSource.getMessage(
-                    "dash.insight.empty",
-                    null,
-                    locale
-            );
+        public DashboardAlert(String type, String icon, String title, String text) {
+            this.type = type;
+            this.icon = icon;
+            this.title = title;
+            this.text = text;
         }
 
-        if (largestCategory != null && largestCategory.getPercent() >= 50) {
-            return messageSource.getMessage(
-                    "dash.insight.categoryShare",
-                    new Object[]{
-                            largestCategory.getCategory(),
-                            largestCategory.getPercent()
-                    },
-                    locale
-            );
-        }
-
-        if (dueThisMonthCount > 0) {
-            return messageSource.getMessage(
-                    "dash.insight.dueThisMonth",
-                    new Object[]{dueThisMonthCount},
-                    locale
-            );
-        }
-
-        if (largestSubscription != null && largestSubscriptionMonthly != null) {
-            return messageSource.getMessage(
-                    "dash.insight.largestSubscription",
-                    new Object[]{
-                            largestSubscription.getName(),
-                            largestSubscriptionMonthly
-                    },
-                    locale
-            );
-        }
-
-        return messageSource.getMessage(
-                "dash.insight.monthlySummary",
-                new Object[]{
-                        totalMonthly,
-                        count
-                },
-                locale
-        );
-    }
-
-    private LocalDate rollForward(LocalDate next, String interval, LocalDate today) {
-        LocalDate d = next;
-        while (!d.isAfter(today)) {
-            d = advance(d, interval);
-        }
-        return d;
-    }
-
-    private LocalDate advance(LocalDate d, String interval) {
-        return switch (interval == null ? "MONTHLY" : interval.trim().toUpperCase()) {
-            case "WEEKLY" -> d.plusWeeks(1);
-            case "QUARTERLY" -> d.plusMonths(3);
-            case "YEARLY" -> d.plusYears(1);
-            default -> d.plusMonths(1);
-        };
-    }
-
-    public static class CategoryInsight {
-        private final String category;
-        private final BigDecimal amount;
-        private final int percent;
-        private final int barWidth;
-
-        public CategoryInsight(String category, BigDecimal amount, int percent, int barWidth) {
-            this.category = category;
-            this.amount = amount;
-            this.percent = percent;
-            this.barWidth = barWidth;
-        }
-
-        public String getCategory() { return category; }
-        public BigDecimal getAmount() { return amount; }
-        public int getPercent() { return percent; }
-        public int getBarWidth() { return barWidth; }
-    }
-
-    public static class MonthProjection {
-        private final String label;
-        private final BigDecimal amount;
-        private final int barWidth;
-
-        public MonthProjection(String label, BigDecimal amount, int barWidth) {
-            this.label = label;
-            this.amount = amount;
-            this.barWidth = barWidth;
-        }
-
-        public String getLabel() { return label; }
-        public BigDecimal getAmount() { return amount; }
-        public int getBarWidth() { return barWidth; }
+        public String getType() { return type; }
+        public String getIcon() { return icon; }
+        public String getTitle() { return title; }
+        public String getText() { return text; }
     }
 }
