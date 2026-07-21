@@ -480,35 +480,34 @@
           </div>
         </c:if>
 
-
-      <div class="card">
-        <div class="dash-section-title">
-          <h3><fmt:message key="dash.upcoming.title"/></h3>
-          <span class="muted"><fmt:message key="dash.upcoming.lead"/></span>
-        </div>
-
-        <c:if test="${empty upcomingPayments}">
-          <div class="muted"><fmt:message key="dash.upcoming.none"/></div>
-        </c:if>
-
-        <div class="payment-list">
-          <c:forEach var="s" items="${upcomingPayments}">
-            <div class="payment-item">
-              <div class="activity-icon">◷</div>
-              <div>
-                <div class="payment-name"><c:out value="${s.name}"/></div>
-                <div class="payment-date"><c:out value="${s.nextChargeDate}"/></div>
-              </div>
-              <div class="payment-amount">
-                <c:out value="${s.amount}"/> <c:out value="${s.currency}"/>
-              </div>
-            </div>
-          </c:forEach>
-        </div>
-      </div>
-
       </div>
     </div>
+
+    <div class="card">
+            <div class="dash-section-title">
+              <h3><fmt:message key="dash.upcoming.title"/></h3>
+              <span class="muted"><fmt:message key="dash.upcoming.lead"/></span>
+            </div>
+
+            <c:if test="${empty upcomingPayments}">
+              <div class="muted"><fmt:message key="dash.upcoming.none"/></div>
+            </c:if>
+
+            <div class="payment-list">
+              <c:forEach var="s" items="${upcomingPayments}">
+                <div class="payment-item">
+                  <div class="activity-icon">◷</div>
+                  <div>
+                    <div class="payment-name"><c:out value="${s.name}"/></div>
+                    <div class="payment-date"><c:out value="${s.nextChargeDate}"/></div>
+                  </div>
+                  <div class="payment-amount">
+                    <c:out value="${s.amount}"/> <c:out value="${s.currency}"/>
+                  </div>
+                </div>
+              </c:forEach>
+            </div>
+          </div>
 
     <div class="dash-stack">
 
