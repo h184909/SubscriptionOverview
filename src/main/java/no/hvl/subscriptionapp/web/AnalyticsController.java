@@ -14,13 +14,9 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Controller
 public class AnalyticsController {
@@ -44,424 +40,342 @@ public class AnalyticsController {
         String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
         if (email == null) return "redirect:/login";
 
-        List<Subscription> allSubscriptions =
-                subscriptionRepository.findByUserEmailOrderByCreatedAtDesc(email);
+        List<Subscription> all = subscriptionRepository.findByUserEmailOrderByCreatedAtDesc(email);
+        List<Subscription> active = all.stream().filter(Subscription::isActive).toList();
+        List<Subscription> ended = all.stream().filter(s -> !s.isActive()).toList();
 
-        List<Subscription> activeSubscriptions = allSubscriptions.stream()
-                .filter(Subscription::isActive)
-                .toList();
+        Map<UUID, BigDecimal> monthlyById = new LinkedHashMap<>();
+        for (Subscription s : all) monthlyById.put(s.getId(), monthlyCostInNok(s));
 
-        List<Subscription> endedSubscriptions = allSubscriptions.stream()
-                .filter(subscription -> !subscription.isActive())
-                .toList();
-
-        Map<UUID, BigDecimal> monthlyNokBySubscriptionId = new LinkedHashMap<>();
-        BigDecimal activeMonthlyNok = BigDecimal.ZERO;
-        BigDecimal savedMonthlyNok = BigDecimal.ZERO;
-
-        for (Subscription subscription : allSubscriptions) {
-            BigDecimal monthlyNok = monthlyCostInNok(subscription);
-            monthlyNokBySubscriptionId.put(subscription.getId(), monthlyNok);
-
-            if (subscription.isActive()) {
-                activeMonthlyNok = activeMonthlyNok.add(monthlyNok);
-            } else {
-                savedMonthlyNok = savedMonthlyNok.add(monthlyNok);
-            }
-        }
-
-        activeMonthlyNok = money(activeMonthlyNok);
-        savedMonthlyNok = money(savedMonthlyNok);
-
-        BigDecimal yearlyNok = money(activeMonthlyNok.multiply(BigDecimal.valueOf(12)));
-        BigDecimal savedYearlyNok = money(savedMonthlyNok.multiply(BigDecimal.valueOf(12)));
-        BigDecimal averageMonthlyNok = activeSubscriptions.isEmpty()
+        BigDecimal monthlyTotal = sumMonthly(active, monthlyById);
+        BigDecimal savedMonthly = sumMonthly(ended, monthlyById);
+        BigDecimal yearlyTotal = money(monthlyTotal.multiply(BigDecimal.valueOf(12)));
+        BigDecimal savedYearly = money(savedMonthly.multiply(BigDecimal.valueOf(12)));
+        BigDecimal averageMonthly = active.isEmpty()
                 ? money(BigDecimal.ZERO)
-                : activeMonthlyNok.divide(
-                BigDecimal.valueOf(activeSubscriptions.size()),
-                2,
-                RoundingMode.HALF_UP
-        );
+                : monthlyTotal.divide(BigDecimal.valueOf(active.size()), 2, RoundingMode.HALF_UP);
+        BigDecimal medianMonthly = calculateMedian(active.stream()
+                .map(s -> monthlyById.getOrDefault(s.getId(), BigDecimal.ZERO))
+                .sorted()
+                .toList());
 
-        int uncategorizedCount = (int) activeSubscriptions.stream()
-                .filter(subscription -> cleanCategory(subscription.getCategory()).equals("Uncategorized"))
+        LocalDate today = LocalDate.now();
+        LocalDate in30Days = today.plusDays(30);
+        List<Subscription> upcoming = active.stream()
+                .filter(s -> s.getNextChargeDate() != null)
+                .filter(s -> !s.getNextChargeDate().isBefore(today))
+                .filter(s -> !s.getNextChargeDate().isAfter(in30Days))
+                .sorted(Comparator.comparing(Subscription::getNextChargeDate))
+                .toList();
+        BigDecimal upcoming30Days = money(upcoming.stream()
+                .map(this::chargeAmountInNok)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+
+        int uncategorized = (int) active.stream()
+                .filter(s -> "Uncategorized".equals(cleanCategory(s.getCategory())))
                 .count();
-
-        int missingNextChargeCount = (int) activeSubscriptions.stream()
-                .filter(subscription -> subscription.getNextChargeDate() == null)
+        int missingDates = (int) active.stream()
+                .filter(s -> s.getNextChargeDate() == null)
                 .count();
+        int dataQualityScore = calculateDataQualityScore(active.size(), uncategorized, missingDates);
 
-        int dataQualityScore = calculateDataQualityScore(
-                activeSubscriptions.size(),
-                uncategorizedCount,
-                missingNextChargeCount
-        );
+        List<CategoryAnalytics> categories = buildCategoryAnalytics(active, monthlyById, monthlyTotal);
+        List<IntervalAnalytics> intervals = buildIntervalAnalytics(active);
+        List<CurrencyAnalytics> currencies = buildCurrencyAnalytics(active);
 
-        List<CategoryAnalytics> categoryAnalytics = buildCategoryAnalytics(
-                activeSubscriptions,
-                monthlyNokBySubscriptionId,
-                activeMonthlyNok
-        );
-
-        List<IntervalAnalytics> intervalAnalytics =
-                buildIntervalAnalytics(activeSubscriptions);
-
-        List<Subscription> topSubscriptions = activeSubscriptions.stream()
-                .sorted((first, second) ->
-                        monthlyNokBySubscriptionId
-                                .getOrDefault(second.getId(), BigDecimal.ZERO)
-                                .compareTo(monthlyNokBySubscriptionId
-                                        .getOrDefault(first.getId(), BigDecimal.ZERO)))
+        List<Subscription> topSubscriptions = active.stream()
+                .sorted(byMonthlyCostDescending(monthlyById))
+                .limit(10)
+                .toList();
+        List<Subscription> endedSorted = ended.stream()
+                .sorted(byMonthlyCostDescending(monthlyById))
                 .limit(10)
                 .toList();
 
-        List<Subscription> endedSorted = endedSubscriptions.stream()
-                .sorted((first, second) ->
-                        monthlyNokBySubscriptionId
-                                .getOrDefault(second.getId(), BigDecimal.ZERO)
-                                .compareTo(monthlyNokBySubscriptionId
-                                        .getOrDefault(first.getId(), BigDecimal.ZERO)))
-                .limit(10)
-                .toList();
+        Subscription largest = topSubscriptions.isEmpty() ? null : topSubscriptions.get(0);
+        Subscription cheapest = active.stream()
+                .min(Comparator.comparing(s -> monthlyById.getOrDefault(s.getId(), BigDecimal.ZERO)))
+                .orElse(null);
+        CategoryAnalytics largestCategory = categories.isEmpty() ? null : categories.get(0);
+        int largestShare = largest == null ? 0 : percentage(
+                monthlyById.getOrDefault(largest.getId(), BigDecimal.ZERO), monthlyTotal);
 
-        List<MonthAnalytics> forecastMonths =
-                buildForecastMonths(activeSubscriptions, LocalDate.now(), locale);
-
-        List<String> insights = buildInsights(
-                activeSubscriptions,
-                endedSubscriptions,
-                categoryAnalytics,
-                topSubscriptions,
-                monthlyNokBySubscriptionId,
-                activeMonthlyNok,
-                savedMonthlyNok,
-                uncategorizedCount,
-                locale
-        );
+        List<MonthAnalytics> forecast = buildForecastMonths(active, today, locale);
+        BigDecimal forecastAverage = forecast.isEmpty()
+                ? money(BigDecimal.ZERO)
+                : forecast.stream().map(MonthAnalytics::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .divide(BigDecimal.valueOf(forecast.size()), 2, RoundingMode.HALF_UP);
 
         model.addAttribute("email", email);
-        model.addAttribute("activeSubscriptions", activeSubscriptions);
+        model.addAttribute("activeSubscriptions", active);
         model.addAttribute("endedSubscriptions", endedSorted);
         model.addAttribute("topSubscriptions", topSubscriptions);
-        model.addAttribute("monthlyNokBySubscriptionId", monthlyNokBySubscriptionId);
+        model.addAttribute("upcomingSubscriptions", upcoming);
+        model.addAttribute("monthlyNokBySubscriptionId", monthlyById);
 
-        model.addAttribute("activeMonthlyNok", activeMonthlyNok);
-        model.addAttribute("yearlyNok", yearlyNok);
-        model.addAttribute("averageMonthlyNok", averageMonthlyNok);
-        model.addAttribute("savedMonthlyNok", savedMonthlyNok);
-        model.addAttribute("savedYearlyNok", savedYearlyNok);
+        model.addAttribute("activeMonthlyNok", monthlyTotal);
+        model.addAttribute("yearlyNok", yearlyTotal);
+        model.addAttribute("averageMonthlyNok", averageMonthly);
+        model.addAttribute("medianMonthlyNok", medianMonthly);
+        model.addAttribute("savedMonthlyNok", savedMonthly);
+        model.addAttribute("savedYearlyNok", savedYearly);
+        model.addAttribute("upcoming30DaysNok", upcoming30Days);
+        model.addAttribute("forecastAverage", forecastAverage);
 
-        model.addAttribute("activeCount", activeSubscriptions.size());
-        model.addAttribute("endedCount", endedSubscriptions.size());
-        model.addAttribute("uncategorizedCount", uncategorizedCount);
-        model.addAttribute("missingNextChargeCount", missingNextChargeCount);
+        model.addAttribute("activeCount", active.size());
+        model.addAttribute("endedCount", ended.size());
+        model.addAttribute("upcomingCount", upcoming.size());
+        model.addAttribute("uncategorizedCount", uncategorized);
+        model.addAttribute("missingNextChargeCount", missingDates);
         model.addAttribute("dataQualityScore", dataQualityScore);
+        model.addAttribute("largestSubscriptionShare", largestShare);
 
-        model.addAttribute("categoryAnalytics", categoryAnalytics);
-        model.addAttribute("categoryChartCss", buildCategoryChartCss(categoryAnalytics));
-        model.addAttribute("intervalAnalytics", intervalAnalytics);
-        model.addAttribute("forecastMonths", forecastMonths);
-        model.addAttribute("insights", insights);
+        model.addAttribute("categoryAnalytics", categories);
+        model.addAttribute("categoryChartCss", buildCategoryChartCss(categories));
+        model.addAttribute("intervalAnalytics", intervals);
+        model.addAttribute("currencyAnalytics", currencies);
+        model.addAttribute("forecastMonths", forecast);
+        model.addAttribute("awards", buildAwards(largest, cheapest, largestCategory, monthlyById, savedMonthly, locale));
+        model.addAttribute("insights", buildInsights(
+                active, ended, categories, topSubscriptions, monthlyById,
+                monthlyTotal, savedMonthly, uncategorized, upcoming30Days,
+                largestShare, locale));
 
         return "analytics";
     }
 
-    private BigDecimal monthlyCostInNok(Subscription subscription) {
-        if (subscription == null || subscription.getMonthlyCost() == null) {
-            return money(BigDecimal.ZERO);
-        }
+    private BigDecimal sumMonthly(List<Subscription> subscriptions, Map<UUID, BigDecimal> monthlyById) {
+        return money(subscriptions.stream()
+                .map(s -> monthlyById.getOrDefault(s.getId(), BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+    }
 
-        BigDecimal converted = exchangeRateService.convertToNok(
-                subscription.getMonthlyCost(),
-                subscription.getCurrency()
-        );
+    private Comparator<Subscription> byMonthlyCostDescending(Map<UUID, BigDecimal> monthlyById) {
+        return (a, b) -> monthlyById.getOrDefault(b.getId(), BigDecimal.ZERO)
+                .compareTo(monthlyById.getOrDefault(a.getId(), BigDecimal.ZERO));
+    }
 
+    private BigDecimal monthlyCostInNok(Subscription s) {
+        if (s == null || s.getMonthlyCost() == null) return money(BigDecimal.ZERO);
+        BigDecimal converted = exchangeRateService.convertToNok(s.getMonthlyCost(), s.getCurrency());
         return money(converted == null ? BigDecimal.ZERO : converted);
     }
 
+    private BigDecimal chargeAmountInNok(Subscription s) {
+        if (s == null || s.getAmount() == null) return money(BigDecimal.ZERO);
+        BigDecimal converted = exchangeRateService.convertToNok(s.getAmount(), s.getCurrency());
+        return money(converted == null ? BigDecimal.ZERO : converted);
+    }
+
+    private BigDecimal calculateMedian(List<BigDecimal> values) {
+        if (values == null || values.isEmpty()) return money(BigDecimal.ZERO);
+        int middle = values.size() / 2;
+        if (values.size() % 2 == 1) return money(values.get(middle));
+        return values.get(middle - 1).add(values.get(middle))
+                .divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+    }
+
     private List<CategoryAnalytics> buildCategoryAnalytics(
-            List<Subscription> activeSubscriptions,
-            Map<UUID, BigDecimal> monthlyNokBySubscriptionId,
-            BigDecimal totalMonthlyNok
+            List<Subscription> active,
+            Map<UUID, BigDecimal> monthlyById,
+            BigDecimal total
     ) {
         Map<String, BigDecimal> totals = new LinkedHashMap<>();
-
-        for (Subscription subscription : activeSubscriptions) {
-            String category = cleanCategory(subscription.getCategory());
-            BigDecimal monthlyNok = monthlyNokBySubscriptionId
-                    .getOrDefault(subscription.getId(), BigDecimal.ZERO);
-            totals.merge(category, monthlyNok, BigDecimal::add);
+        for (Subscription s : active) {
+            totals.merge(cleanCategory(s.getCategory()),
+                    monthlyById.getOrDefault(s.getId(), BigDecimal.ZERO), BigDecimal::add);
         }
-
         return totals.entrySet().stream()
-                .map(entry -> {
-                    BigDecimal amount = money(entry.getValue());
-                    int percentage = percentage(amount, totalMonthlyNok);
-                    return new CategoryAnalytics(
-                            entry.getKey(),
-                            amount,
-                            percentage,
-                            barWidth(percentage)
-                    );
+                .map(e -> {
+                    BigDecimal amount = money(e.getValue());
+                    int pct = percentage(amount, total);
+                    return new CategoryAnalytics(e.getKey(), amount, pct, barWidth(pct));
                 })
                 .sorted(Comparator.comparing(CategoryAnalytics::getAmount).reversed())
                 .toList();
     }
 
-    private List<IntervalAnalytics> buildIntervalAnalytics(
-            List<Subscription> activeSubscriptions
-    ) {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        counts.put("WEEKLY", 0);
-        counts.put("MONTHLY", 0);
-        counts.put("QUARTERLY", 0);
-        counts.put("YEARLY", 0);
-        counts.put("OTHER", 0);
-
-        for (Subscription subscription : activeSubscriptions) {
-            counts.merge(normalizeInterval(subscription.getInterval()), 1, Integer::sum);
-        }
-
-        int total = activeSubscriptions.size();
-
+    private List<IntervalAnalytics> buildIntervalAnalytics(List<Subscription> active) {
+        Map<String, Long> counts = active.stream()
+                .map(s -> normalizeInterval(s.getInterval()))
+                .collect(Collectors.groupingBy(Function.identity(), LinkedHashMap::new, Collectors.counting()));
+        int total = active.size();
         return counts.entrySet().stream()
-                .filter(entry -> entry.getValue() > 0)
-                .map(entry -> {
-                    int percentage = total == 0
-                            ? 0
-                            : (int) Math.round((entry.getValue() * 100.0) / total);
-                    return new IntervalAnalytics(
-                            entry.getKey(),
-                            entry.getValue(),
-                            percentage,
-                            barWidth(percentage)
-                    );
+                .map(e -> {
+                    int count = e.getValue().intValue();
+                    int pct = total == 0 ? 0 : (int) Math.round(count * 100.0 / total);
+                    return new IntervalAnalytics(e.getKey(), count, pct, barWidth(pct));
                 })
                 .sorted(Comparator.comparing(IntervalAnalytics::getCount).reversed())
                 .toList();
     }
 
-    private List<MonthAnalytics> buildForecastMonths(
-            List<Subscription> activeSubscriptions,
-            LocalDate today,
-            Locale locale
-    ) {
+    private List<CurrencyAnalytics> buildCurrencyAnalytics(List<Subscription> active) {
+        Map<String, Long> counts = active.stream()
+                .map(s -> normalizeCurrency(s.getCurrency()))
+                .collect(Collectors.groupingBy(Function.identity(), LinkedHashMap::new, Collectors.counting()));
+        int total = active.size();
+        return counts.entrySet().stream()
+                .map(e -> {
+                    int count = e.getValue().intValue();
+                    int pct = total == 0 ? 0 : (int) Math.round(count * 100.0 / total);
+                    return new CurrencyAnalytics(e.getKey(), count, pct, barWidth(pct));
+                })
+                .sorted(Comparator.comparing(CurrencyAnalytics::getCount).reversed())
+                .toList();
+    }
+
+    private List<MonthAnalytics> buildForecastMonths(List<Subscription> active, LocalDate today, Locale locale) {
         YearMonth firstMonth = YearMonth.from(today);
         Map<YearMonth, BigDecimal> totals = new LinkedHashMap<>();
-
-        for (int index = 0; index < 12; index++) {
-            totals.put(firstMonth.plusMonths(index), BigDecimal.ZERO);
-        }
+        for (int i = 0; i < 12; i++) totals.put(firstMonth.plusMonths(i), BigDecimal.ZERO);
 
         LocalDate firstDate = firstMonth.atDay(1);
         LocalDate lastDate = firstMonth.plusMonths(11).atEndOfMonth();
 
-        for (Subscription subscription : activeSubscriptions) {
-            if (subscription.getNextChargeDate() == null
-                    || subscription.getAmount() == null) continue;
-
-            BigDecimal chargeNok = exchangeRateService.convertToNok(
-                    subscription.getAmount(),
-                    subscription.getCurrency()
-            );
-            if (chargeNok == null) continue;
-
-            LocalDate chargeDate = subscription.getNextChargeDate();
-
-            int rewindGuard = 0;
-            while (chargeDate.isBefore(firstDate) && rewindGuard++ < 500) {
-                chargeDate = advance(chargeDate, subscription.getInterval());
-            }
-
-            int forecastGuard = 0;
-            while (!chargeDate.isAfter(lastDate) && forecastGuard++ < 500) {
-                YearMonth yearMonth = YearMonth.from(chargeDate);
-                if (totals.containsKey(yearMonth)) {
-                    totals.merge(yearMonth, chargeNok, BigDecimal::add);
-                }
-                chargeDate = advance(chargeDate, subscription.getInterval());
+        for (Subscription s : active) {
+            if (s.getNextChargeDate() == null || s.getAmount() == null) continue;
+            BigDecimal charge = chargeAmountInNok(s);
+            LocalDate date = s.getNextChargeDate();
+            int guard = 0;
+            while (date.isBefore(firstDate) && guard++ < 500) date = advance(date, s.getInterval());
+            guard = 0;
+            while (!date.isAfter(lastDate) && guard++ < 500) {
+                YearMonth ym = YearMonth.from(date);
+                if (totals.containsKey(ym)) totals.merge(ym, charge, BigDecimal::add);
+                date = advance(date, s.getInterval());
             }
         }
 
-        BigDecimal maximum = totals.values().stream()
-                .max(BigDecimal::compareTo)
-                .orElse(BigDecimal.ZERO);
-
+        BigDecimal max = totals.values().stream().max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM yyyy", locale);
         List<MonthAnalytics> result = new ArrayList<>();
-
-        for (Map.Entry<YearMonth, BigDecimal> entry : totals.entrySet()) {
-            BigDecimal amount = money(entry.getValue());
-            int width = maximum.compareTo(BigDecimal.ZERO) <= 0
-                    ? 4
+        for (Map.Entry<YearMonth, BigDecimal> e : totals.entrySet()) {
+            BigDecimal amount = money(e.getValue());
+            int width = max.compareTo(BigDecimal.ZERO) <= 0 ? 4
                     : amount.multiply(BigDecimal.valueOf(100))
-                    .divide(maximum, 0, RoundingMode.HALF_UP)
-                    .intValue();
-
-            result.add(new MonthAnalytics(
-                    entry.getKey().atDay(1).format(formatter),
-                    amount,
-                    Math.max(4, Math.min(100, width))
-            ));
+                    .divide(max, 0, RoundingMode.HALF_UP).intValue();
+            result.add(new MonthAnalytics(e.getKey().atDay(1).format(formatter), amount,
+                    Math.max(4, Math.min(100, width))));
         }
-
         return result;
     }
 
+    private List<AnalyticsAward> buildAwards(
+            Subscription largest,
+            Subscription cheapest,
+            CategoryAnalytics largestCategory,
+            Map<UUID, BigDecimal> monthlyById,
+            BigDecimal savedMonthly,
+            Locale locale
+    ) {
+        List<AnalyticsAward> awards = new ArrayList<>();
+        if (largest != null) awards.add(new AnalyticsAward("💸",
+                messageSource.getMessage("analytics.award.biggest.title", null, locale),
+                messageSource.getMessage("analytics.award.biggest.text",
+                        new Object[]{largest.getName(), monthlyById.getOrDefault(largest.getId(), BigDecimal.ZERO)}, locale)));
+        if (cheapest != null) awards.add(new AnalyticsAward("🌱",
+                messageSource.getMessage("analytics.award.cheapest.title", null, locale),
+                messageSource.getMessage("analytics.award.cheapest.text",
+                        new Object[]{cheapest.getName(), monthlyById.getOrDefault(cheapest.getId(), BigDecimal.ZERO)}, locale)));
+        if (largestCategory != null) awards.add(new AnalyticsAward("🏆",
+                messageSource.getMessage("analytics.award.category.title", null, locale),
+                messageSource.getMessage("analytics.award.category.text",
+                        new Object[]{largestCategory.getCategory(), largestCategory.getPercentage()}, locale)));
+        if (savedMonthly.compareTo(BigDecimal.ZERO) > 0) awards.add(new AnalyticsAward("✂️",
+                messageSource.getMessage("analytics.award.savings.title", null, locale),
+                messageSource.getMessage("analytics.award.savings.text", new Object[]{savedMonthly}, locale)));
+        return awards.stream().limit(4).toList();
+    }
+
     private List<String> buildInsights(
-            List<Subscription> activeSubscriptions,
-            List<Subscription> endedSubscriptions,
-            List<CategoryAnalytics> categoryAnalytics,
+            List<Subscription> active,
+            List<Subscription> ended,
+            List<CategoryAnalytics> categories,
             List<Subscription> topSubscriptions,
-            Map<UUID, BigDecimal> monthlyNokBySubscriptionId,
-            BigDecimal totalMonthlyNok,
-            BigDecimal savedMonthlyNok,
-            int uncategorizedCount,
+            Map<UUID, BigDecimal> monthlyById,
+            BigDecimal totalMonthly,
+            BigDecimal savedMonthly,
+            int uncategorized,
+            BigDecimal upcoming30Days,
+            int largestShare,
             Locale locale
     ) {
         List<String> insights = new ArrayList<>();
-
-        if (activeSubscriptions.isEmpty()) {
+        if (active.isEmpty()) {
             insights.add(messageSource.getMessage("analytics.insight.empty", null, locale));
             return insights;
         }
-
-        if (!categoryAnalytics.isEmpty()) {
-            CategoryAnalytics largestCategory = categoryAnalytics.get(0);
-            if (largestCategory.getPercentage() >= 40) {
-                insights.add(messageSource.getMessage(
-                        "analytics.insight.category",
-                        new Object[]{
-                                largestCategory.getCategory(),
-                                largestCategory.getPercentage()
-                        },
-                        locale
-                ));
-            }
+        if (!categories.isEmpty() && categories.get(0).getPercentage() >= 40) {
+            CategoryAnalytics c = categories.get(0);
+            insights.add(messageSource.getMessage("analytics.insight.category",
+                    new Object[]{c.getCategory(), c.getPercentage()}, locale));
         }
-
         if (!topSubscriptions.isEmpty()) {
-            Subscription largestSubscription = topSubscriptions.get(0);
-            BigDecimal largestMonthly = monthlyNokBySubscriptionId
-                    .getOrDefault(largestSubscription.getId(), BigDecimal.ZERO);
-
-            insights.add(messageSource.getMessage(
-                    "analytics.insight.largest",
-                    new Object[]{largestSubscription.getName(), largestMonthly},
-                    locale
-            ));
+            Subscription s = topSubscriptions.get(0);
+            insights.add(messageSource.getMessage("analytics.insight.largest",
+                    new Object[]{s.getName(), monthlyById.getOrDefault(s.getId(), BigDecimal.ZERO)}, locale));
         }
-
-        if (!endedSubscriptions.isEmpty()
-                && savedMonthlyNok.compareTo(BigDecimal.ZERO) > 0) {
-            insights.add(messageSource.getMessage(
-                    "analytics.insight.saved",
-                    new Object[]{endedSubscriptions.size(), savedMonthlyNok},
-                    locale
-            ));
+        if (largestShare >= 40) insights.add(messageSource.getMessage(
+                "analytics.insight.concentration", new Object[]{largestShare}, locale));
+        if (!ended.isEmpty() && savedMonthly.compareTo(BigDecimal.ZERO) > 0) {
+            insights.add(messageSource.getMessage("analytics.insight.saved",
+                    new Object[]{ended.size(), savedMonthly}, locale));
         }
+        if (upcoming30Days.compareTo(BigDecimal.ZERO) > 0) insights.add(messageSource.getMessage(
+                "analytics.insight.upcoming", new Object[]{upcoming30Days}, locale));
+        if (uncategorized > 0) insights.add(messageSource.getMessage(
+                "analytics.insight.uncategorized", new Object[]{uncategorized}, locale));
 
-        if (uncategorizedCount > 0) {
-            insights.add(messageSource.getMessage(
-                    "analytics.insight.uncategorized",
-                    new Object[]{uncategorizedCount},
-                    locale
-            ));
-        }
-
-        long monthlyCount = activeSubscriptions.stream()
-                .filter(subscription ->
-                        "MONTHLY".equals(normalizeInterval(subscription.getInterval())))
+        long monthlyCount = active.stream()
+                .filter(s -> "MONTHLY".equals(normalizeInterval(s.getInterval())))
                 .count();
-
-        if (monthlyCount == activeSubscriptions.size()
-                && activeSubscriptions.size() > 1) {
-            insights.add(messageSource.getMessage(
-                    "analytics.insight.allMonthly",
-                    new Object[]{monthlyCount},
-                    locale
-            ));
+        if (monthlyCount == active.size() && active.size() > 1) {
+            insights.add(messageSource.getMessage("analytics.insight.allMonthly",
+                    new Object[]{monthlyCount}, locale));
         }
-
-        if (insights.isEmpty()) {
-            insights.add(messageSource.getMessage(
-                    "analytics.insight.summary",
-                    new Object[]{totalMonthlyNok, activeSubscriptions.size()},
-                    locale
-            ));
-        }
-
-        return insights.stream().limit(5).toList();
+        if (insights.isEmpty()) insights.add(messageSource.getMessage(
+                "analytics.insight.summary", new Object[]{totalMonthly, active.size()}, locale));
+        return insights.stream().limit(6).toList();
     }
 
-    private int calculateDataQualityScore(
-            int activeCount,
-            int uncategorizedCount,
-            int missingNextChargeCount
-    ) {
+    private int calculateDataQualityScore(int activeCount, int uncategorized, int missingDates) {
         if (activeCount == 0) return 0;
-
-        int categoryPenalty = Math.min(
-                40,
-                (int) Math.round((uncategorizedCount * 40.0) / activeCount)
-        );
-        int datePenalty = Math.min(
-                40,
-                (int) Math.round((missingNextChargeCount * 40.0) / activeCount)
-        );
-
+        int categoryPenalty = Math.min(40, (int) Math.round(uncategorized * 40.0 / activeCount));
+        int datePenalty = Math.min(40, (int) Math.round(missingDates * 40.0 / activeCount));
         return Math.max(0, 100 - categoryPenalty - datePenalty);
     }
 
-    private String buildCategoryChartCss(List<CategoryAnalytics> analytics) {
-        if (analytics == null || analytics.isEmpty()) {
+    private String buildCategoryChartCss(List<CategoryAnalytics> categories) {
+        if (categories == null || categories.isEmpty())
             return "conic-gradient(rgba(255,255,255,.12) 0 100%)";
-        }
-
         StringBuilder css = new StringBuilder("conic-gradient(");
         int current = 0;
-
-        for (int index = 0; index < analytics.size(); index++) {
-            CategoryAnalytics category = analytics.get(index);
-            int next = index == analytics.size() - 1
-                    ? 100
-                    : Math.min(100, current + category.getPercentage());
-
-            if (index > 0) css.append(", ");
-
-            css.append(colorForIndex(index))
-                    .append(" ")
-                    .append(current)
-                    .append("% ")
-                    .append(next)
-                    .append("%");
-
+        for (int i = 0; i < categories.size(); i++) {
+            CategoryAnalytics c = categories.get(i);
+            int next = i == categories.size() - 1 ? 100 : Math.min(100, current + c.getPercentage());
+            if (i > 0) css.append(", ");
+            css.append(colorForIndex(i)).append(" ").append(current).append("% ").append(next).append("%");
             current = next;
         }
-
         return css.append(")").toString();
     }
 
     private String colorForIndex(int index) {
-        String[] colors = {
-                "#60a5fa", "#34d399", "#fb7185", "#f59e0b",
-                "#a78bfa", "#22d3ee", "#f97316", "#94a3b8"
-        };
+        String[] colors = {"#60a5fa", "#34d399", "#fb7185", "#f59e0b",
+                "#a78bfa", "#22d3ee", "#f97316", "#94a3b8"};
         return colors[Math.floorMod(index, colors.length)];
     }
 
     private String cleanCategory(String category) {
-        if (category == null
-                || category.isBlank()
-                || "Other".equalsIgnoreCase(category.trim())) {
+        if (category == null || category.isBlank() || "Other".equalsIgnoreCase(category.trim()))
             return "Uncategorized";
-        }
         return category.trim();
     }
 
     private String normalizeInterval(String interval) {
         if (interval == null || interval.isBlank()) return "OTHER";
-
         return switch (interval.trim().toUpperCase(Locale.ROOT)) {
             case "WEEKLY" -> "WEEKLY";
             case "MONTHLY" -> "MONTHLY";
@@ -469,6 +383,10 @@ public class AnalyticsController {
             case "YEARLY" -> "YEARLY";
             default -> "OTHER";
         };
+    }
+
+    private String normalizeCurrency(String currency) {
+        return currency == null || currency.isBlank() ? "NOK" : currency.trim().toUpperCase(Locale.ROOT);
     }
 
     private LocalDate advance(LocalDate date, String interval) {
@@ -481,18 +399,12 @@ public class AnalyticsController {
     }
 
     private BigDecimal money(BigDecimal amount) {
-        return (amount == null ? BigDecimal.ZERO : amount)
-                .setScale(2, RoundingMode.HALF_UP);
+        return (amount == null ? BigDecimal.ZERO : amount).setScale(2, RoundingMode.HALF_UP);
     }
 
     private int percentage(BigDecimal part, BigDecimal total) {
-        if (part == null || total == null || total.compareTo(BigDecimal.ZERO) <= 0) {
-            return 0;
-        }
-
-        return part.multiply(BigDecimal.valueOf(100))
-                .divide(total, 0, RoundingMode.HALF_UP)
-                .intValue();
+        if (part == null || total == null || total.compareTo(BigDecimal.ZERO) <= 0) return 0;
+        return part.multiply(BigDecimal.valueOf(100)).divide(total, 0, RoundingMode.HALF_UP).intValue();
     }
 
     private int barWidth(int percentage) {
@@ -504,19 +416,9 @@ public class AnalyticsController {
         private final BigDecimal amount;
         private final int percentage;
         private final int barWidth;
-
-        public CategoryAnalytics(
-                String category,
-                BigDecimal amount,
-                int percentage,
-                int barWidth
-        ) {
-            this.category = category;
-            this.amount = amount;
-            this.percentage = percentage;
-            this.barWidth = barWidth;
+        public CategoryAnalytics(String category, BigDecimal amount, int percentage, int barWidth) {
+            this.category = category; this.amount = amount; this.percentage = percentage; this.barWidth = barWidth;
         }
-
         public String getCategory() { return category; }
         public BigDecimal getAmount() { return amount; }
         public int getPercentage() { return percentage; }
@@ -528,20 +430,24 @@ public class AnalyticsController {
         private final int count;
         private final int percentage;
         private final int barWidth;
-
-        public IntervalAnalytics(
-                String interval,
-                int count,
-                int percentage,
-                int barWidth
-        ) {
-            this.interval = interval;
-            this.count = count;
-            this.percentage = percentage;
-            this.barWidth = barWidth;
+        public IntervalAnalytics(String interval, int count, int percentage, int barWidth) {
+            this.interval = interval; this.count = count; this.percentage = percentage; this.barWidth = barWidth;
         }
-
         public String getInterval() { return interval; }
+        public int getCount() { return count; }
+        public int getPercentage() { return percentage; }
+        public int getBarWidth() { return barWidth; }
+    }
+
+    public static class CurrencyAnalytics {
+        private final String currency;
+        private final int count;
+        private final int percentage;
+        private final int barWidth;
+        public CurrencyAnalytics(String currency, int count, int percentage, int barWidth) {
+            this.currency = currency; this.count = count; this.percentage = percentage; this.barWidth = barWidth;
+        }
+        public String getCurrency() { return currency; }
         public int getCount() { return count; }
         public int getPercentage() { return percentage; }
         public int getBarWidth() { return barWidth; }
@@ -551,15 +457,23 @@ public class AnalyticsController {
         private final String label;
         private final BigDecimal amount;
         private final int barWidth;
-
         public MonthAnalytics(String label, BigDecimal amount, int barWidth) {
-            this.label = label;
-            this.amount = amount;
-            this.barWidth = barWidth;
+            this.label = label; this.amount = amount; this.barWidth = barWidth;
         }
-
         public String getLabel() { return label; }
         public BigDecimal getAmount() { return amount; }
         public int getBarWidth() { return barWidth; }
+    }
+
+    public static class AnalyticsAward {
+        private final String icon;
+        private final String title;
+        private final String text;
+        public AnalyticsAward(String icon, String title, String text) {
+            this.icon = icon; this.title = title; this.text = text;
+        }
+        public String getIcon() { return icon; }
+        public String getTitle() { return title; }
+        public String getText() { return text; }
     }
 }
