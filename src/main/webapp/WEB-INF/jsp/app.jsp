@@ -466,17 +466,17 @@
 
       <div class="card">
         <div class="dash-section-title">
-          <h3><fmt:message key="dash.topSubscriptions"/></h3>
-          <a href="<c:url value='/app/analytics'/>">
-            <fmt:message key="dash.openAnalytics"/>
+          <h3><fmt:message key="nav.subscriptions"/></h3>
+          <a href="<c:url value='/app/subscriptions'/>">
+            <fmt:message key="dash.viewAll"/>
           </a>
         </div>
 
-        <c:if test="${empty topSubscriptions}">
+        <c:if test="${empty subs}">
           <div class="muted"><fmt:message key="dash.noActiveSubs"/></div>
         </c:if>
 
-        <c:if test="${not empty topSubscriptions}">
+        <c:if test="${not empty subs}">
           <div class="tablewrap">
             <table class="top-table">
               <thead>
@@ -487,7 +487,7 @@
               </tr>
               </thead>
               <tbody>
-              <c:forEach var="s" items="${topSubscriptions}">
+              <c:forEach var="s" items="${subs}">
                 <tr>
                   <td><b><c:out value="${s.name}"/></b></td>
                   <td>
@@ -509,44 +509,6 @@
     </div>
 
     <div class="dash-stack">
-
-      <div class="card">
-        <div class="dash-section-title">
-          <h3><fmt:message key="dash.alerts.title"/></h3>
-          <span class="pill"><c:out value="${alerts.size()}"/></span>
-        </div>
-
-        <div class="alert-list">
-          <c:forEach var="alert" items="${alerts}">
-            <div class="alert-item ${alert.type}">
-              <div class="alert-icon"><c:out value="${alert.icon}"/></div>
-              <div>
-                <div class="alert-title"><c:out value="${alert.title}"/></div>
-                <div class="alert-text"><c:out value="${alert.text}"/></div>
-              </div>
-            </div>
-          </c:forEach>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="dash-section-title">
-          <h3><fmt:message key="dash.activity.title"/></h3>
-          <span class="muted"><fmt:message key="dash.activity.lead"/></span>
-        </div>
-
-        <div class="activity-list">
-          <c:forEach var="activity" items="${recentActivity}">
-            <div class="activity-item">
-              <div class="activity-icon"><c:out value="${activity.icon}"/></div>
-              <div>
-                <div class="activity-title"><c:out value="${activity.title}"/></div>
-                <div class="activity-text"><c:out value="${activity.text}"/></div>
-              </div>
-            </div>
-          </c:forEach>
-        </div>
-      </div>
 
       <div class="card">
         <div class="dash-section-title">
@@ -606,6 +568,46 @@
           </c:choose>
         </div>
       </div>
+
+      <div class="card">
+        <div class="dash-section-title">
+          <h3><fmt:message key="dash.alerts.title"/></h3>
+          <span class="pill"><c:out value="${alerts.size()}"/></span>
+        </div>
+
+        <div class="alert-list">
+          <c:forEach var="alert" items="${alerts}">
+            <div class="alert-item ${alert.type}">
+              <div class="alert-icon"><c:out value="${alert.icon}"/></div>
+              <div>
+                <div class="alert-title"><c:out value="${alert.title}"/></div>
+                <div class="alert-text"><c:out value="${alert.text}"/></div>
+              </div>
+            </div>
+          </c:forEach>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="dash-section-title">
+          <h3><fmt:message key="dash.activity.title"/></h3>
+          <span class="muted"><fmt:message key="dash.activity.lead"/></span>
+        </div>
+
+        <div class="activity-list">
+          <c:forEach var="activity" items="${recentActivity}">
+            <div class="activity-item">
+              <div class="activity-icon"><c:out value="${activity.icon}"/></div>
+              <div>
+                <div class="activity-title"><c:out value="${activity.title}"/></div>
+                <div class="activity-text"><c:out value="${activity.text}"/></div>
+              </div>
+            </div>
+          </c:forEach>
+        </div>
+      </div>
+
+
 
       <div class="card">
         <div class="dash-section-title">
