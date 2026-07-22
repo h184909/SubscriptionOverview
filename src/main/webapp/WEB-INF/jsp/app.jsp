@@ -6,7 +6,7 @@
 <head>
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="dash.title"/></title>
-  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
+  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css?v=mobile-20260722-2" />
   <link rel="icon" href="<c:url value='/favicon.ico'/>" />
   <meta name="theme-color" content="#0b1220" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -301,7 +301,15 @@
       </div>
     </div>
 
-    <div class="nav">
+    <button type="button"
+            class="mobile-menu-toggle"
+            aria-label="Open navigation"
+            aria-expanded="false"
+            aria-controls="main-navigation">
+      <span class="mobile-menu-toggle-lines" aria-hidden="true"></span>
+    </button>
+
+    <div class="nav" id="main-navigation">
       <a href="<c:url value='/app'/>"><fmt:message key="nav.dashboard"/></a>
       <a href="<c:url value='/app/subscriptions'/>"><fmt:message key="nav.subscriptions"/></a>
       <a href="<c:url value='/app/analytics'/>"><fmt:message key="nav.analytics"/></a>
@@ -333,7 +341,7 @@
       <p><fmt:message key="dash.greeting.lead"/></p>
     </div>
 
-    <div class="dash-quick-actions mobile-button-stack">
+    <div class="dash-quick-actions">
       <a class="btn btn-primary" href="<c:url value='/app/suggestions'/>">
         ✦ <fmt:message key="dash.quick.review"/>
       </a>
@@ -630,7 +638,5 @@
     </div>
   </section>
 </div>
-
-<script src="<c:url value='/assets/mobile-nav.js'/>"></script>
 </body>
 </html>
