@@ -333,7 +333,7 @@
       <p><fmt:message key="dash.greeting.lead"/></p>
     </div>
 
-    <div class="dash-quick-actions">
+    <div class="dash-quick-actions mobile-button-stack">
       <a class="btn btn-primary" href="<c:url value='/app/suggestions'/>">
         ✦ <fmt:message key="dash.quick.review"/>
       </a>
@@ -630,5 +630,7 @@
     </div>
   </section>
 </div>
+
+<script src="<c:url value='/assets/mobile-nav.js'/>"></script>
 </body>
 </html>

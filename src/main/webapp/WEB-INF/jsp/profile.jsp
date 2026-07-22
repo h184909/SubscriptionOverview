@@ -188,6 +188,6 @@
     </div>
   </div>
 </div>
-
+<script src="<c:url value='/assets/mobile-nav.js'/>"></script>
 </body>
 </html>

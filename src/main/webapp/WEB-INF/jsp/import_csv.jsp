@@ -131,6 +131,6 @@
   });
 })();
 </script>
-
+<script src="<c:url value='/assets/mobile-nav.js'/>"></script>
 </body>
 </html>
