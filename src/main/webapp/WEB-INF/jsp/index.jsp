@@ -11,7 +11,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#081220" />
 
-  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css?v=mobile-v2" />
+  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css?v=mobile-v3" />
 
   <link rel="icon" href="<c:url value='/favicon.ico'/>" />
   <link rel="icon" type="image/png" sizes="32x32" href="<c:url value='/favicon-32.png'/>" />
@@ -186,11 +186,60 @@
       .landing-feature-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
     }
     @media (max-width:760px) {
-      .landing-topbar { position:static; }
-      .landing-topbar .topbar { align-items:flex-start; }
-      .landing-auth { width:100%; justify-content:flex-end; }
-      .landing-hero { padding:48px 0 44px; }
-      .landing-title { font-size:clamp(42px,13vw,60px); }
+      .landing-topbar {
+        position:static;
+        margin-top:10px;
+      }
+
+      .landing-topbar .topbar {
+        display:flex;
+        flex-direction:column;
+        align-items:stretch;
+        gap:12px;
+        padding:12px;
+      }
+
+      .landing-topbar .brand {
+        width:100%;
+        min-width:0;
+      }
+
+      .landing-topbar .brand > div {
+        min-width:0;
+      }
+
+      .landing-topbar .brand h1 {
+        white-space:normal;
+        overflow-wrap:anywhere;
+      }
+
+      .landing-topbar .brand .sub {
+        line-height:1.35;
+      }
+
+      .landing-auth {
+        display:grid;
+        grid-template-columns:44px 44px minmax(0,1fr) minmax(0,1fr);
+        width:100%;
+        gap:8px;
+      }
+
+      .landing-auth .btn {
+        width:100%;
+        min-width:0;
+        padding:9px 10px;
+        white-space:nowrap;
+      }
+
+      .landing-hero {
+        padding:46px 0 44px;
+      }
+
+      .landing-title {
+        font-size:clamp(40px,12vw,58px);
+        line-height:1.01;
+      }
+
       .preview-body { grid-template-columns:1fr; }
       .preview-sidebar { display:none; }
       .preview-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -201,12 +250,72 @@
       .landing-footer-bottom { align-items:flex-start; flex-direction:column; }
     }
     @media (max-width:520px) {
-      .landing-shell { width:min(94vw,1240px); }
-      .landing-auth .btn { padding:8px 10px; }
-      .landing-hero { padding-top:38px; }
-      .landing-lead { font-size:16px; }
-      .landing-cta-row { align-items:stretch; flex-direction:column; }
-      .landing-cta-row .btn { justify-content:center; }
+      .landing-shell {
+        width:min(calc(100% - 16px),1240px);
+      }
+
+      .landing-topbar .topbar {
+        padding:11px;
+      }
+
+      .landing-topbar .brand {
+        gap:9px;
+      }
+
+      .landing-topbar .brand .logo {
+        width:38px;
+        height:38px;
+      }
+
+      .landing-topbar .brand h1 {
+        font-size:15px;
+      }
+
+      .landing-topbar .brand .sub {
+        font-size:11px;
+      }
+
+      .landing-auth {
+        grid-template-columns:42px 42px minmax(0,1fr) minmax(0,1.12fr);
+        gap:7px;
+      }
+
+      .landing-auth .btn {
+        min-height:43px;
+        padding:8px 7px;
+        font-size:14px;
+      }
+
+      .landing-hero {
+        padding-top:36px;
+      }
+
+      .landing-eyebrow {
+        max-width:100%;
+        font-size:12px;
+        line-height:1.35;
+      }
+
+      .landing-title {
+        margin-top:20px;
+        font-size:clamp(38px,11.5vw,50px);
+        letter-spacing:-.045em;
+      }
+
+      .landing-lead {
+        font-size:16px;
+      }
+
+      .landing-cta-row {
+        align-items:stretch;
+        flex-direction:column;
+      }
+
+      .landing-cta-row .btn {
+        width:100%;
+        justify-content:center;
+      }
+
       .preview-content { padding:12px; }
       .preview-kpis { grid-template-columns:1fr 1fr; }
       .preview-value { font-size:13px; }
@@ -464,7 +573,5 @@
     });
   });
 </script>
-<script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
 </body>
 </html>
-
