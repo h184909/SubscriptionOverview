@@ -1,4 +1,4 @@
-<%@ page contentType="text/html; charset=UTF-8" %>
+﻿<%@ page contentType="text/html; charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <!doctype html>
@@ -6,7 +6,7 @@
 <head>
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="dash.title"/></title>
-  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css?v=mobile-20260722-2" />
+  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css?v=mobile-v2" />
   <link rel="icon" href="<c:url value='/favicon.ico'/>" />
   <meta name="theme-color" content="#0b1220" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -405,7 +405,7 @@
   <section class="dash-grid">
     <div class="dash-stack">
 
-      <div class="card">
+      <div class="card dash-card-next">
         <div class="dash-section-title">
           <h3><fmt:message key="dash.nextPayment.title"/></h3>
           <a href="<c:url value='/app/subscriptions'/>">
@@ -446,7 +446,7 @@
         </c:choose>
       </div>
 
-      <div class="card">
+      <div class="card dash-card-subscriptions">
         <div class="dash-section-title">
           <h3><fmt:message key="nav.subscriptions"/></h3>
           <a href="<c:url value='/app/subscriptions'/>">
@@ -490,7 +490,7 @@
       </div>
 
 
-      <div class="card">
+      <div class="card dash-card-upcoming">
         <div class="dash-section-title">
           <h3><fmt:message key="dash.upcoming.title"/></h3>
           <span class="muted"><fmt:message key="dash.upcoming.lead"/></span>
@@ -520,7 +520,7 @@
 
     <div class="dash-stack">
 
-      <div class="card">
+      <div class="card dash-card-bank">
         <div class="dash-section-title">
           <h3><fmt:message key="dash.bank.title"/></h3>
           <c:choose>
@@ -579,7 +579,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card dash-card-alerts">
         <div class="dash-section-title">
           <h3><fmt:message key="dash.alerts.title"/></h3>
           <span class="pill"><c:out value="${alerts.size()}"/></span>
@@ -598,7 +598,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card dash-card-activity">
         <div class="dash-section-title">
           <h3><fmt:message key="dash.activity.title"/></h3>
           <span class="muted"><fmt:message key="dash.activity.lead"/></span>
@@ -619,7 +619,7 @@
 
 
 
-      <div class="card">
+      <div class="card dash-card-account">
         <div class="dash-section-title">
           <h3><fmt:message key="dash.account.title"/></h3>
         </div>
@@ -638,5 +638,7 @@
     </div>
   </section>
 </div>
+<script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
 </body>
 </html>
+

@@ -1,10 +1,10 @@
-<%@ page contentType="text/html; charset=UTF-8" %>
+﻿<%@ page contentType="text/html; charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 
 <html>
 <head>
   <title>OpenBanking</title>
-  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
+  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css?v=mobile-v2" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
@@ -76,5 +76,7 @@ logo">
   </div>
 </div>
 
+<script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
 </body>
 </html>
+

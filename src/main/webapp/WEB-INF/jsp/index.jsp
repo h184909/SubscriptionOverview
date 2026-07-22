@@ -1,4 +1,4 @@
-<%@ page contentType="text/html; charset=UTF-8" %>
+﻿<%@ page contentType="text/html; charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <!DOCTYPE html>
@@ -11,7 +11,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#081220" />
 
-  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
+  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css?v=mobile-v2" />
 
   <link rel="icon" href="<c:url value='/favicon.ico'/>" />
   <link rel="icon" type="image/png" sizes="32x32" href="<c:url value='/favicon-32.png'/>" />
@@ -464,5 +464,7 @@
     });
   });
 </script>
+<script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
 </body>
 </html>
+

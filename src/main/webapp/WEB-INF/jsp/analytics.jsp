@@ -1,4 +1,4 @@
-<%@ page contentType="text/html; charset=UTF-8" %>
+﻿<%@ page contentType="text/html; charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <!doctype html>
@@ -6,7 +6,7 @@
 <head>
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="analytics.title"/></title>
-  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
+  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css?v=mobile-v2" />
   <link rel="icon" href="<c:url value='/favicon.ico'/>" />
   <meta name="theme-color" content="#0b1220" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -141,6 +141,7 @@
     </div>
   </div>
 </div>
-<script src="<c:url value='/assets/mobile-nav.js'/>"></script>
+<script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
 </body>
 </html>
+

@@ -9,24 +9,30 @@
     const nav = topbar.querySelector(".nav");
     if (!nav) return;
 
-    const button = document.createElement("button");
-    const navId = nav.id || `mobile-nav-${index}`;
-
+    const navId = nav.id || `mobile-navigation-${index}`;
     nav.id = navId;
+
+    let button = topbar.querySelector(".mobile-menu-toggle");
+
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "mobile-menu-toggle";
+      button.innerHTML =
+        '<span class="mobile-menu-toggle-lines" aria-hidden="true"></span>';
+
+      const brand = topbar.querySelector(".brand");
+      if (brand) {
+        brand.insertAdjacentElement("afterend", button);
+      } else {
+        topbar.insertBefore(button, nav);
+      }
+    }
+
     button.type = "button";
-    button.className = "mobile-menu-toggle";
     button.setAttribute("aria-label", "Open navigation");
     button.setAttribute("aria-controls", navId);
     button.setAttribute("aria-expanded", "false");
-    button.innerHTML =
-      '<span class="mobile-menu-toggle-lines" aria-hidden="true"></span>';
-
-    const brand = topbar.querySelector(".brand");
-    if (brand && brand.nextSibling) {
-      topbar.insertBefore(button, brand.nextSibling);
-    } else {
-      topbar.insertBefore(button, nav);
-    }
 
     function setOpen(open) {
       topbar.classList.toggle("mobile-menu-open", open);
@@ -38,12 +44,16 @@
     }
 
     button.addEventListener("click", event => {
+      event.preventDefault();
       event.stopPropagation();
       setOpen(!topbar.classList.contains("mobile-menu-open"));
     });
 
     nav.addEventListener("click", event => {
-      if (event.target.closest("a") && window.innerWidth <= MOBILE_BREAKPOINT) {
+      if (
+        event.target.closest("a") &&
+        window.innerWidth <= MOBILE_BREAKPOINT
+      ) {
         setOpen(false);
       }
     });
@@ -58,11 +68,15 @@
     });
 
     document.addEventListener("keydown", event => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
     });
 
     window.addEventListener("resize", () => {
-      if (window.innerWidth > MOBILE_BREAKPOINT) setOpen(false);
+      if (window.innerWidth > MOBILE_BREAKPOINT) {
+        setOpen(false);
+      }
     });
 
     topbar.dataset.mobileNavReady = "true";

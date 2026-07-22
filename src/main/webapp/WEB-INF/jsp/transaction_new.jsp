@@ -1,9 +1,9 @@
-<%@ page contentType="text/html; charset=UTF-8" %>
+﻿<%@ page contentType="text/html; charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <html>
 <head>
   <title>Ny transaksjon</title>
-  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css" />
+  <link rel="stylesheet" href="<%=request.getContextPath()%>/assets/app.css?v=mobile-v2" />
   <link rel="icon" href="<c:url value='/assets/favicon.ico'/>" />
   <link rel="icon" type="image/png" sizes="32x32" href="<c:url value='/assets/favicon-32.png'/>" />
   <link rel="icon" type="image/png" sizes="16x16" href="<c:url value='/assets/favicon-16.png'/>" />
@@ -67,5 +67,7 @@
   </div>
 </div>
 
+<script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
 </body>
 </html>
+
