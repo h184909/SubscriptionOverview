@@ -330,7 +330,7 @@
   });
 </script>
 <script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
-  <script src="<c:url value='/assets/subscription-details.js?v=1'/>"></script>
+  <script src="<c:url value='/assets/subscription-details.js?v=2'/>"></script>
 </body>
 </html>
 
