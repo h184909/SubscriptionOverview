@@ -42,15 +42,21 @@ public class SubscriptionDetailsController {
     @GetMapping("/{id}/details")
     public ResponseEntity<?> details(
             HttpSession session,
-            @PathVariable UUID id
+            @PathVariable UUID id,
+            Locale locale
     ) {
-        String email = (String) session.getAttribute(LoginController.SESSION_USER_EMAIL);
+        String email = (String) session.getAttribute(
+                LoginController.SESSION_USER_EMAIL
+        );
+
         if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Not signed in"));
         }
 
-        Subscription subscription = subscriptionRepository.findById(id).orElse(null);
+        Subscription subscription =
+                subscriptionRepository.findById(id).orElse(null);
+
         if (subscription == null
                 || !email.equalsIgnoreCase(subscription.getUserEmail())) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -112,7 +118,8 @@ public class SubscriptionDetailsController {
                 .max(LocalDate::compareTo)
                 .orElse(null);
 
-        PriceChange priceChange = calculatePriceChange(matchingTransactions);
+        PriceChange priceChange =
+                calculatePriceChange(matchingTransactions);
 
         String cancelUrl = firstNonBlank(
                 subscription.getCancelUrl(),
@@ -136,35 +143,38 @@ public class SubscriptionDetailsController {
                 priceChange
         );
 
-        SubscriptionDetailsResponse response =
-                new SubscriptionDetailsResponse(
-                        subscription.getId(),
-                        subscription.getName(),
-                        blankToNull(subscription.getCategory()),
-                        subscription.isActive(),
-                        subscription.getAmount(),
-                        normalizeCurrency(subscription.getCurrency()),
-                        normalizeInterval(subscription.getInterval()),
-                        subscription.getNextChargeDate(),
-                        subscription.getCreatedAt(),
-                        blankToNull(subscription.getBillingEmail()),
-                        blankToNull(subscription.getProviderKey()),
-                        blankToNull(cancelUrl),
-                        monthlyNok,
-                        yearlyNok,
-                        money(totalSpentNok),
-                        matchingTransactions.size(),
-                        money(averagePaymentNok),
-                        money(smallestPaymentNok),
-                        money(largestPaymentNok),
-                        firstPaymentDate,
-                        lastPaymentDate,
-                        priceChange,
-                        insights,
-                        history
-                );
+        String language = locale != null
+                && "nb".equalsIgnoreCase(locale.getLanguage())
+                ? "nb"
+                : "en";
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(new SubscriptionDetailsResponse(
+                language,
+                subscription.getId(),
+                subscription.getName(),
+                blankToNull(subscription.getCategory()),
+                subscription.isActive(),
+                subscription.getAmount(),
+                normalizeCurrency(subscription.getCurrency()),
+                normalizeInterval(subscription.getInterval()),
+                subscription.getNextChargeDate(),
+                subscription.getCreatedAt(),
+                blankToNull(subscription.getBillingEmail()),
+                blankToNull(subscription.getProviderKey()),
+                blankToNull(cancelUrl),
+                monthlyNok,
+                yearlyNok,
+                money(totalSpentNok),
+                matchingTransactions.size(),
+                money(averagePaymentNok),
+                money(smallestPaymentNok),
+                money(largestPaymentNok),
+                firstPaymentDate,
+                lastPaymentDate,
+                priceChange,
+                insights,
+                history
+        ));
     }
 
     private List<BankTransaction> findMatchingTransactions(
@@ -174,25 +184,28 @@ public class SubscriptionDetailsController {
         List<BankTransaction> transactions =
                 transactionRepository.findByUserEmailOrderByTxDateDesc(email);
 
-        String subscriptionProvider = normalize(
-                firstNonBlank(
-                        subscription.getProviderKey(),
-                        KnownMerchants.match(
-                                        subscription.getName(),
-                                        subscription.getName()
-                                )
-                                .map(KnownMerchants.Match::providerKey)
-                                .orElse(null)
-                )
+        String providerKey = firstNonBlank(
+                subscription.getProviderKey(),
+                KnownMerchants.match(
+                                subscription.getName(),
+                                subscription.getName()
+                        )
+                        .map(KnownMerchants.Match::providerKey)
+                        .orElse(null)
         );
 
-        Set<String> nameTokens = significantTokens(subscription.getName());
+        boolean knownProvider =
+                KnownMerchants.isKnownProviderKey(providerKey);
+
+        Set<String> nameTokens =
+                significantTokens(subscription.getName());
 
         return transactions.stream()
                 .filter(transaction -> isOutgoing(transaction.getAmount()))
                 .filter(transaction -> transactionMatches(
                         transaction,
-                        subscriptionProvider,
+                        providerKey,
+                        knownProvider,
                         nameTokens
                 ))
                 .toList();
@@ -201,40 +214,54 @@ public class SubscriptionDetailsController {
     private boolean transactionMatches(
             BankTransaction transaction,
             String subscriptionProvider,
+            boolean knownProvider,
             Set<String> nameTokens
     ) {
-        String raw = firstNonBlank(
-                transaction.getDescription(),
-                transaction.getReference()
-        );
+        String raw = (
+                firstNonBlank(transaction.getDescription(), "")
+                        + " "
+                        + firstNonBlank(transaction.getReference(), "")
+        ).trim();
 
         Optional<KnownMerchants.Match> known =
                 KnownMerchants.match(raw, raw);
 
-        if (!subscriptionProvider.isBlank()
-                && known.isPresent()
-                && normalize(known.get().providerKey())
-                .equals(subscriptionProvider)) {
-            return true;
+        if (knownProvider) {
+            return known.isPresent()
+                    && known.get().providerKey()
+                    .equalsIgnoreCase(subscriptionProvider);
         }
 
-        String transactionText = normalize(
-                firstNonBlank(
-                        transaction.getDescription(),
-                        transaction.getReference()
-                )
-        );
+        if (KnownMerchants.isGenericPaymentWrapper(raw)) {
+            return false;
+        }
+
+        String transactionText = normalize(raw);
 
         if (transactionText.isBlank() || nameTokens.isEmpty()) {
             return false;
         }
 
         long matchingTokens = nameTokens.stream()
-                .filter(transactionText::contains)
+                .filter(token -> containsWholeToken(
+                        transactionText,
+                        token
+                ))
                 .count();
 
         int required = nameTokens.size() == 1 ? 1 : 2;
-        return matchingTokens >= Math.min(required, nameTokens.size());
+
+        return matchingTokens >= Math.min(
+                required,
+                nameTokens.size()
+        );
+    }
+
+    private boolean containsWholeToken(
+            String text,
+            String token
+    ) {
+        return Arrays.asList(text.split("\\s+")).contains(token);
     }
 
     private Set<String> significantTokens(String value) {
@@ -252,7 +279,9 @@ public class SubscriptionDetailsController {
                 "norge",
                 "norway",
                 "service",
-                "services"
+                "services",
+                "apple",
+                "google"
         );
 
         return Arrays.stream(normalize(value).split("\\s+"))
@@ -285,6 +314,7 @@ public class SubscriptionDetailsController {
                     LocalDate.now(),
                     subscription.getNextChargeDate()
             );
+
             insights.add("NEXT_PAYMENT|" + days);
         }
 
@@ -311,25 +341,28 @@ public class SubscriptionDetailsController {
             List<BankTransaction> transactions
     ) {
         List<BankTransaction> dated = transactions.stream()
-                .filter(transaction -> transaction.getTxLocalDate() != null)
+                .filter(transaction ->
+                        transaction.getTxLocalDate() != null
+                )
                 .sorted(Comparator.comparing(
                         BankTransaction::getTxLocalDate
                 ))
                 .toList();
 
-        if (dated.size() < 2) {
-            return null;
-        }
+        if (dated.size() < 2) return null;
 
-        BigDecimal first = transactionAmountInNok(dated.get(0));
+        BigDecimal first =
+                transactionAmountInNok(dated.get(0));
+
         BigDecimal latest =
-                transactionAmountInNok(dated.get(dated.size() - 1));
+                transactionAmountInNok(
+                        dated.get(dated.size() - 1)
+                );
 
-        if (first.compareTo(BigDecimal.ZERO) == 0) {
-            return null;
-        }
+        if (first.compareTo(BigDecimal.ZERO) == 0) return null;
 
         BigDecimal change = money(latest.subtract(first));
+
         BigDecimal percent = change
                 .multiply(BigDecimal.valueOf(100))
                 .divide(first, 1, RoundingMode.HALF_UP);
@@ -418,7 +451,8 @@ public class SubscriptionDetailsController {
                 .replace("_", " ")
                 .replace("-", " ")
                 .replaceAll("[^\\p{L}\\p{N}\\s]", " ")
-                .replaceAll("\\s+", " ");
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private String blankToNull(String value) {
@@ -433,10 +467,12 @@ public class SubscriptionDetailsController {
                 return value.trim();
             }
         }
+
         return "";
     }
 
     public record SubscriptionDetailsResponse(
+            String language,
             UUID id,
             String name,
             String category,

@@ -1,11 +1,10 @@
 (() => {
   "use strict";
 
-  const lang = (document.documentElement.lang || "en")
-    .toLowerCase()
-    .startsWith("nb") ? "nb" : "en";
+  let lang = "en";
+  let text;
 
-  const text = {
+  const translations = {
     en: {
       loading: "Loading subscription details…",
       error: "Could not load subscription details.",
@@ -98,7 +97,16 @@
       approximateFx: "Historikk i NOK bruker tilgjengelig valutakurs og er omtrentlig.",
       unknown: "—"
     }
-  }[lang];
+  };
+
+  function setLanguage(value) {
+    lang = String(value || "en").toLowerCase().startsWith("nb")
+      ? "nb"
+      : "en";
+    text = translations[lang];
+  }
+
+  setLanguage(document.documentElement.lang);
 
   const contextPath =
     document.documentElement.dataset.contextPath || "";
@@ -118,6 +126,7 @@
 
   function money(value) {
     const number = Number(value ?? 0);
+
     return new Intl.NumberFormat(
       lang === "nb" ? "nb-NO" : "en-GB",
       {
@@ -131,7 +140,7 @@
     if (!value) return text.unknown;
 
     const parsed = new Date(`${value}T12:00:00`);
-    if (Number.isNaN(parsed.getTime())) return escapeHtml(value);
+    if (Number.isNaN(parsed.getTime())) return String(value);
 
     return new Intl.DateTimeFormat(
       lang === "nb" ? "nb-NO" : "en-GB",
@@ -162,12 +171,13 @@
     return values[lang][value] || value || text.unknown;
   }
 
-  function relativeDays(daysValue) {
-    const days = Number(daysValue);
+  function relativeDays(value) {
+    const days = Number(value);
 
     if (days === 0) return text.daysToday;
     if (days === 1) return text.daysTomorrow;
     if (days > 1) return text.daysIn.replace("{days}", days);
+
     return text.daysAgo.replace("{days}", Math.abs(days));
   }
 
@@ -177,7 +187,6 @@
     overlay = document.createElement("div");
     overlay.className = "subscription-modal-overlay";
     overlay.setAttribute("aria-hidden", "true");
-
     overlay.innerHTML = `
       <section class="subscription-modal"
                role="dialog"
@@ -193,6 +202,10 @@
 
     document.body.appendChild(overlay);
     return overlay;
+  }
+
+  function contentNode() {
+    return document.getElementById("subscription-modal-content");
   }
 
   function open(id, trigger) {
@@ -222,10 +235,6 @@
     }
   }
 
-  function contentNode() {
-    return document.getElementById("subscription-modal-content");
-  }
-
   function renderLoading() {
     contentNode().innerHTML = `
       <div class="subscription-modal-header">
@@ -233,15 +242,21 @@
           <div class="subscription-modal-icon">S</div>
           <div>
             <h2 class="subscription-modal-title"
-                id="subscription-modal-title">${escapeHtml(text.loading)}</h2>
+                id="subscription-modal-title">
+              ${escapeHtml(text.loading)}
+            </h2>
           </div>
         </div>
+
         <button class="subscription-modal-close"
                 type="button"
                 data-subscription-modal-close
                 aria-label="${escapeHtml(text.close)}">×</button>
       </div>
-      <div class="subscription-modal-loading">${escapeHtml(text.loading)}</div>
+
+      <div class="subscription-modal-loading">
+        ${escapeHtml(text.loading)}
+      </div>
     `;
 
     bindCloseButtons();
@@ -250,20 +265,24 @@
   function renderError() {
     contentNode().innerHTML = `
       <div class="subscription-modal-header">
-        <div>
-          <h2 class="subscription-modal-title"
-              id="subscription-modal-title">${escapeHtml(text.error)}</h2>
-        </div>
+        <h2 class="subscription-modal-title"
+            id="subscription-modal-title">
+          ${escapeHtml(text.error)}
+        </h2>
+
         <button class="subscription-modal-close"
                 type="button"
                 data-subscription-modal-close
                 aria-label="${escapeHtml(text.close)}">×</button>
       </div>
+
       <div class="subscription-modal-error">
         <p>${escapeHtml(text.error)}</p>
         <button class="btn"
                 type="button"
-                data-subscription-modal-retry>${escapeHtml(text.retry)}</button>
+                data-subscription-modal-retry>
+          ${escapeHtml(text.retry)}
+        </button>
       </div>
     `;
 
@@ -272,10 +291,13 @@
     const retry = contentNode().querySelector(
       "[data-subscription-modal-retry]"
     );
-    if (retry) retry.addEventListener("click", () => {
-      renderLoading();
-      fetchDetails(currentId);
-    });
+
+    if (retry) {
+      retry.addEventListener("click", () => {
+        renderLoading();
+        fetchDetails(currentId);
+      });
+    }
   }
 
   async function fetchDetails(id) {
@@ -293,6 +315,9 @@
       if (!response.ok) throw new Error("Request failed");
 
       const data = await response.json();
+
+      // The language now comes from Spring's SessionLocaleResolver.
+      setLanguage(data.language);
       renderDetails(data);
     } catch (error) {
       renderError();
@@ -301,36 +326,77 @@
 
   function insightText(raw) {
     const parts = String(raw || "").split("|");
-    const type = parts[0];
 
-    switch (type) {
+    switch (parts[0]) {
       case "MONTHLY":
-        return text.monthlyInsight.replace("{amount}", money(parts[1]));
+        return text.monthlyInsight.replace(
+          "{amount}",
+          money(parts[1])
+        );
+
       case "YEARLY":
-        return text.yearlyInsight.replace("{amount}", money(parts[1]));
+        return text.yearlyInsight.replace(
+          "{amount}",
+          money(parts[1])
+        );
+
       case "TOTAL_SPENT":
-        return text.totalInsight.replace("{amount}", money(parts[1]));
+        return text.totalInsight.replace(
+          "{amount}",
+          money(parts[1])
+        );
+
       case "PAYMENT_COUNT":
-        return text.countInsight.replace("{count}", parts[1]);
+        return text.countInsight.replace(
+          "{count}",
+          parts[1]
+        );
+
       case "NEXT_PAYMENT":
         return text.nextInsight.replace(
           "{when}",
           relativeDays(parts[1])
         );
+
       case "PRICE_CHANGE": {
         const amount = Number(parts[1]);
         const percent = Number(parts[2]);
-        const template = amount >= 0 ? text.priceUp : text.priceDown;
+        const template =
+          amount >= 0 ? text.priceUp : text.priceDown;
 
         return template
           .replace("{amount}", money(Math.abs(amount)))
           .replace("{percent}", money(Math.abs(percent)));
       }
+
       case "NO_HISTORY":
         return text.noHistoryInsight;
+
       default:
         return raw;
     }
+  }
+
+  function kpi(label, value) {
+    return `
+      <div class="subscription-detail-kpi">
+        <div class="subscription-detail-label">
+          ${escapeHtml(label)}
+        </div>
+        <div class="subscription-detail-value">
+          ${escapeHtml(value)}
+        </div>
+      </div>
+    `;
+  }
+
+  function fact(label, value) {
+    return `
+      <div class="subscription-detail-fact">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+      </div>
+    `;
   }
 
   function renderDetails(data) {
@@ -354,13 +420,10 @@
       ? `
         <div class="subscription-price-change">
           <strong>
-            ${escapeHtml(
-              Number(data.priceChange.changeAmountNok) >= 0
-                ? "↗"
-                : "↘"
-            )}
+            ${Number(data.priceChange.changeAmountNok) >= 0 ? "↗" : "↘"}
             ${money(Math.abs(Number(data.priceChange.changeAmountNok)))} NOK
           </strong>
+
           <div class="muted" style="margin-top:5px;">
             ${money(data.priceChange.firstAmountNok)} NOK →
             ${money(data.priceChange.latestAmountNok)} NOK
@@ -374,39 +437,48 @@
       ? history.map(item => `
           <div class="subscription-history-row">
             <div>${escapeHtml(date(item.date))}</div>
+
             <div class="subscription-history-description">
-              <strong>${escapeHtml(
-                item.description || data.name
-              )}</strong>
-              <span>${escapeHtml(
-                item.reference || item.currency || ""
-              )}</span>
+              <strong>
+                ${escapeHtml(item.description || data.name)}
+              </strong>
+              <span>
+                ${escapeHtml(item.reference || item.currency || "")}
+              </span>
             </div>
+
             <div class="subscription-history-amount">
               ${money(item.amount)} ${escapeHtml(item.currency)}
+
               ${item.currency !== "NOK"
-                ? `<div class="muted">≈ ${money(item.amountNok)} NOK</div>`
+                ? `<div class="muted">
+                     ≈ ${money(item.amountNok)} NOK
+                   </div>`
                 : ""}
             </div>
           </div>
         `).join("")
       : `<div class="muted">${escapeHtml(text.noHistory)}</div>`;
 
-    const insightHtml = insights.length
-      ? insights.map(item => `
-          <div class="subscription-detail-insight">
-            💡 ${escapeHtml(insightText(item))}
-          </div>
-        `).join("")
-      : "";
+    const insightHtml = insights.map(item => `
+      <div class="subscription-detail-insight">
+        💡 ${escapeHtml(insightText(item))}
+      </div>
+    `).join("");
 
     contentNode().innerHTML = `
       <div class="subscription-modal-header">
         <div class="subscription-modal-title-row">
-          <div class="subscription-modal-icon">${escapeHtml(initial)}</div>
+          <div class="subscription-modal-icon">
+            ${escapeHtml(initial)}
+          </div>
+
           <div>
             <h2 class="subscription-modal-title"
-                id="subscription-modal-title">${escapeHtml(data.name)}</h2>
+                id="subscription-modal-title">
+              ${escapeHtml(data.name)}
+            </h2>
+
             <div class="subscription-modal-subtitle">
               <span class="pill ${data.active ? "ok" : "warn"}">
                 ${escapeHtml(status)}
@@ -434,6 +506,7 @@
         <div class="subscription-detail-grid">
           <section class="subscription-detail-section">
             <h3>${escapeHtml(text.overview)}</h3>
+
             <div class="subscription-detail-facts">
               ${fact(text.status, status)}
               ${fact(text.category, category)}
@@ -458,6 +531,7 @@
 
           <section class="subscription-detail-section">
             <h3>${escapeHtml(text.historyStats)}</h3>
+
             <div class="subscription-detail-facts">
               ${fact(text.firstPayment, date(data.firstPaymentDate))}
               ${fact(text.lastPayment, date(data.lastPaymentDate))}
@@ -474,11 +548,13 @@
                 `${money(data.largestPaymentNok)} NOK`
               )}
             </div>
+
             ${priceChange}
           </section>
 
           <section class="subscription-detail-section full">
             <h3>${escapeHtml(text.insights)}</h3>
+
             <div class="subscription-insight-list">
               ${insightHtml}
             </div>
@@ -486,9 +562,11 @@
 
           <section class="subscription-detail-section full">
             <h3>${escapeHtml(text.history)}</h3>
+
             <div class="subscription-history-list">
               ${historyHtml}
             </div>
+
             ${history.some(item => item.currency !== "NOK")
               ? `<div class="muted" style="margin-top:12px;">
                    ${escapeHtml(text.approximateFx)}
@@ -526,31 +604,16 @@
     const closeButton = contentNode().querySelector(
       ".subscription-modal-close"
     );
+
     if (closeButton) closeButton.focus();
-  }
-
-  function kpi(label, value) {
-    return `
-      <div class="subscription-detail-kpi">
-        <div class="subscription-detail-label">${escapeHtml(label)}</div>
-        <div class="subscription-detail-value">${escapeHtml(value)}</div>
-      </div>
-    `;
-  }
-
-  function fact(label, value) {
-    return `
-      <div class="subscription-detail-fact">
-        <span>${escapeHtml(label)}</span>
-        <strong>${escapeHtml(value)}</strong>
-      </div>
-    `;
   }
 
   function bindCloseButtons() {
     contentNode()
       .querySelectorAll("[data-subscription-modal-close]")
-      .forEach(button => button.addEventListener("click", close));
+      .forEach(button =>
+        button.addEventListener("click", close)
+      );
   }
 
   document.addEventListener("click", event => {
@@ -560,11 +623,9 @@
 
     if (!trigger) return;
 
-    if (
-      event.target.closest(
-        "a, button, form, input, select, textarea, label"
-      )
-    ) {
+    if (event.target.closest(
+      "a, button, form, input, select, textarea, label"
+    )) {
       return;
     }
 
@@ -573,7 +634,10 @@
   });
 
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && overlay?.classList.contains("open")) {
+    if (
+      event.key === "Escape"
+      && overlay?.classList.contains("open")
+    ) {
       close();
       return;
     }
@@ -583,8 +647,8 @@
     );
 
     if (
-      trigger &&
-      (event.key === "Enter" || event.key === " ")
+      trigger
+      && (event.key === "Enter" || event.key === " ")
     ) {
       event.preventDefault();
       open(trigger.dataset.subscriptionId, trigger);
