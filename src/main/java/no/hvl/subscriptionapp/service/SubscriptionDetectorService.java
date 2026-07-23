@@ -301,7 +301,7 @@ public class SubscriptionDetectorService {
             return candidate.getConfidence() > existing.getConfidence();
         }
 
-        if (!candidate.getOccurrences().equals(existing.getOccurrences())) {
+        if (candidate.getOccurrences() != existing.getOccurrences()) {
             return candidate.getOccurrences() > existing.getOccurrences();
         }
 
