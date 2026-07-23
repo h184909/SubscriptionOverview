@@ -37,7 +37,7 @@
     @media(max-width:850px){.analytics-grid{grid-template-columns:1fr}.analytics-full{grid-column:auto}.analytics-donut-layout{align-items:flex-start;flex-direction:column}.mini-stats{grid-template-columns:1fr}}
     @media(max-width:560px){.analytics-kpis,.award-grid{grid-template-columns:1fr}.analytics-kpi-value{font-size:23px}}
   </style>
-  <link rel="stylesheet" href="<c:url value='/assets/subscription-details.css?v=1'/>" />
+  <link rel="stylesheet" href="<c:url value='/assets/subscription-details.css?v=2'/>" />
 </head>
 <body>
 <div class="container">
@@ -143,7 +143,7 @@
   </div>
 </div>
 <script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
-  <script src="<c:url value='/assets/subscription-details.js?v=2'/>"></script>
+  <script src="<c:url value='/assets/subscription-details.js?v=3'/>"></script>
 </body>
 </html>
 

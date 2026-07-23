@@ -287,7 +287,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="<c:url value='/assets/subscription-details.css?v=1'/>" />
+  <link rel="stylesheet" href="<c:url value='/assets/subscription-details.css?v=2'/>" />
 </head>
 
 <body>
@@ -640,7 +640,7 @@
   </section>
 </div>
 <script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
-  <script src="<c:url value='/assets/subscription-details.js?v=2'/>"></script>
+  <script src="<c:url value='/assets/subscription-details.js?v=3'/>"></script>
 </body>
 </html>
 

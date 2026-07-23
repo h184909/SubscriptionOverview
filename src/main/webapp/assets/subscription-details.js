@@ -240,10 +240,11 @@
       <div class="subscription-modal-header">
         <div class="subscription-modal-title-row">
           <div class="subscription-modal-icon">S</div>
+
           <div>
             <h2 class="subscription-modal-title"
                 id="subscription-modal-title">
-              ${escapeHtml(text.loading)}
+              SubscriptionOverview
             </h2>
           </div>
         </div>
@@ -251,11 +252,13 @@
         <button class="subscription-modal-close"
                 type="button"
                 data-subscription-modal-close
-                aria-label="${escapeHtml(text.close)}">×</button>
+                aria-label="Close">×</button>
       </div>
 
       <div class="subscription-modal-loading">
-        ${escapeHtml(text.loading)}
+        <div class="subscription-loading-spinner"
+             role="status"
+             aria-label="Loading"></div>
       </div>
     `;
 

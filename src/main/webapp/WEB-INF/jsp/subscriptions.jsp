@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" href="<c:url value='/apple-touch-icon.png'/>" />
   <meta name="theme-color" content="#0b1220" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="<c:url value='/assets/subscription-details.css?v=1'/>" />
+  <link rel="stylesheet" href="<c:url value='/assets/subscription-details.css?v=2'/>" />
 </head>
 <body>
 
@@ -330,7 +330,7 @@
   });
 </script>
 <script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
-  <script src="<c:url value='/assets/subscription-details.js?v=2'/>"></script>
+  <script src="<c:url value='/assets/subscription-details.js?v=3'/>"></script>
 </body>
 </html>
 
