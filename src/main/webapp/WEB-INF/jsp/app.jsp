@@ -2,7 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <!doctype html>
-<html lang="${pageContext.request.locale.language}">
+<html lang="${pageContext.request.locale.language}" data-context-path="${pageContext.request.contextPath}">
 <head>
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="dash.title"/></title>
@@ -287,6 +287,7 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="<c:url value='/assets/subscription-details.css?v=1'/>" />
 </head>
 
 <body>
@@ -415,7 +416,7 @@
 
         <c:choose>
           <c:when test="${not empty nextPayment}">
-            <div class="next-payment">
+            <div class="next-payment subscription-details-trigger" data-subscription-id="${nextPayment.id}" tabindex="0">
               <div>
                 <div class="muted"><fmt:message key="dash.nextPayment.upNext"/></div>
                 <div class="next-payment-name"><c:out value="${nextPayment.name}"/></div>
@@ -470,7 +471,7 @@
               </thead>
               <tbody>
               <c:forEach var="s" items="${subs}">
-                <tr>
+                <tr class="subscription-details-trigger" data-subscription-id="${s.id}" tabindex="0">
                   <td><b><c:out value="${s.name}"/></b></td>
                   <td>
                     <c:choose>
@@ -639,6 +640,8 @@
   </section>
 </div>
 <script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
+  <script src="<c:url value='/assets/subscription-details.js?v=1'/>"></script>
 </body>
 </html>
+
 

@@ -15,15 +15,23 @@ public interface BankTransactionRepository extends JpaRepository<BankTransaction
             OffsetDateTime after
     );
 
+    List<BankTransaction> findByUserEmailOrderByTxDateDesc(
+            String userEmail
+    );
+
     boolean existsByUserEmailAndTxId(String userEmail, String txId);
 
-    boolean existsByUserEmailAndAccountIdAndTxId(String userEmail, String accountId, String txId);
+    boolean existsByUserEmailAndAccountIdAndTxId(
+            String userEmail,
+            String accountId,
+            String txId
+    );
 
-    // ✅ NYTT: hent eksisterende txIds i én query (bulk dedupe)
     List<BankTransaction> findByUserEmailAndAccountIdAndTxIdIn(
             String userEmail,
             String accountId,
             Collection<String> txIds
     );
+
     void deleteByUserEmail(String userEmail);
 }

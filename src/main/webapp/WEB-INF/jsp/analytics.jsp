@@ -2,7 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <!doctype html>
-<html lang="${pageContext.request.locale.language}">
+<html lang="${pageContext.request.locale.language}" data-context-path="${pageContext.request.contextPath}">
 <head>
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="analytics.title"/></title>
@@ -37,6 +37,7 @@
     @media(max-width:850px){.analytics-grid{grid-template-columns:1fr}.analytics-full{grid-column:auto}.analytics-donut-layout{align-items:flex-start;flex-direction:column}.mini-stats{grid-template-columns:1fr}}
     @media(max-width:560px){.analytics-kpis,.award-grid{grid-template-columns:1fr}.analytics-kpi-value{font-size:23px}}
   </style>
+  <link rel="stylesheet" href="<c:url value='/assets/subscription-details.css?v=1'/>" />
 </head>
 <body>
 <div class="container">
@@ -120,19 +121,19 @@
     <div class="card analytics-full">
       <h3><fmt:message key="analytics.upcomingPayments"/></h3>
       <c:if test="${empty upcomingSubscriptions}"><div class="muted"><fmt:message key="analytics.noUpcomingPayments"/></div></c:if>
-      <c:if test="${not empty upcomingSubscriptions}"><div class="tablewrap"><table><thead><tr><th><fmt:message key="table.name"/></th><th><fmt:message key="dash.date"/></th><th><fmt:message key="table.amount"/></th><th><fmt:message key="dash.category"/></th></tr></thead><tbody><c:forEach var="s" items="${upcomingSubscriptions}"><tr><td><b><c:out value="${s.name}"/></b></td><td><c:out value="${s.nextChargeDate}"/></td><td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td><td><c:choose><c:when test="${empty s.category||s.category=='Other'}">-</c:when><c:otherwise><c:out value="${s.category}"/></c:otherwise></c:choose></td></tr></c:forEach></tbody></table></div></c:if>
+      <c:if test="${not empty upcomingSubscriptions}"><div class="tablewrap"><table><thead><tr><th><fmt:message key="table.name"/></th><th><fmt:message key="dash.date"/></th><th><fmt:message key="table.amount"/></th><th><fmt:message key="dash.category"/></th></tr></thead><tbody><c:forEach var="s" items="${upcomingSubscriptions}"><tr class="subscription-details-trigger" data-subscription-id="${s.id}" tabindex="0"><td><b><c:out value="${s.name}"/></b></td><td><c:out value="${s.nextChargeDate}"/></td><td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td><td><c:choose><c:when test="${empty s.category||s.category=='Other'}">-</c:when><c:otherwise><c:out value="${s.category}"/></c:otherwise></c:choose></td></tr></c:forEach></tbody></table></div></c:if>
     </div>
 
     <div class="card analytics-full">
       <h3><fmt:message key="analytics.topSubscriptions"/></h3>
-      <c:if test="${not empty topSubscriptions}"><div class="tablewrap"><table><thead><tr><th><fmt:message key="table.name"/></th><th><fmt:message key="dash.category"/></th><th><fmt:message key="table.interval"/></th><th><fmt:message key="table.price"/></th><th><fmt:message key="table.monthlyApprox"/></th></tr></thead><tbody><c:forEach var="s" items="${topSubscriptions}"><tr><td><b><c:out value="${s.name}"/></b></td><td><c:choose><c:when test="${empty s.category||s.category=='Other'}">-</c:when><c:otherwise><c:out value="${s.category}"/></c:otherwise></c:choose></td><td><c:out value="${s.interval}"/></td><td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td><td><b><c:out value="${monthlyNokBySubscriptionId[s.id]}"/></b> NOK</td></tr></c:forEach></tbody></table></div></c:if>
+      <c:if test="${not empty topSubscriptions}"><div class="tablewrap"><table><thead><tr><th><fmt:message key="table.name"/></th><th><fmt:message key="dash.category"/></th><th><fmt:message key="table.interval"/></th><th><fmt:message key="table.price"/></th><th><fmt:message key="table.monthlyApprox"/></th></tr></thead><tbody><c:forEach var="s" items="${topSubscriptions}"><tr class="subscription-details-trigger" data-subscription-id="${s.id}" tabindex="0"><td><b><c:out value="${s.name}"/></b></td><td><c:choose><c:when test="${empty s.category||s.category=='Other'}">-</c:when><c:otherwise><c:out value="${s.category}"/></c:otherwise></c:choose></td><td><c:out value="${s.interval}"/></td><td><c:out value="${s.amount}"/> <c:out value="${s.currency}"/></td><td><b><c:out value="${monthlyNokBySubscriptionId[s.id]}"/></b> NOK</td></tr></c:forEach></tbody></table></div></c:if>
     </div>
 
     <div class="card">
       <h3><fmt:message key="analytics.savings"/></h3>
       <div class="mini-stats" style="grid-template-columns:repeat(2,minmax(0,1fr));"><div class="mini-stat"><div class="muted"><fmt:message key="analytics.savedMonthly"/></div><div class="mini-stat-value"><c:out value="${savedMonthlyNok}"/> NOK</div></div><div class="mini-stat"><div class="muted"><fmt:message key="analytics.savedYearly"/></div><div class="mini-stat-value"><c:out value="${savedYearlyNok}"/> NOK</div></div></div>
       <c:if test="${empty endedSubscriptions}"><div class="muted" style="margin-top:14px;"><fmt:message key="analytics.noEndedSubscriptions"/></div></c:if>
-      <c:if test="${not empty endedSubscriptions}"><div class="tablewrap" style="margin-top:14px;"><table class="analytics-table"><thead><tr><th><fmt:message key="table.name"/></th><th class="money"><fmt:message key="analytics.savedPerMonth"/></th></tr></thead><tbody><c:forEach var="s" items="${endedSubscriptions}"><tr><td><b><c:out value="${s.name}"/></b></td><td class="money"><b><c:out value="${monthlyNokBySubscriptionId[s.id]}"/></b> NOK</td></tr></c:forEach></tbody></table></div></c:if>
+      <c:if test="${not empty endedSubscriptions}"><div class="tablewrap" style="margin-top:14px;"><table class="analytics-table"><thead><tr><th><fmt:message key="table.name"/></th><th class="money"><fmt:message key="analytics.savedPerMonth"/></th></tr></thead><tbody><c:forEach var="s" items="${endedSubscriptions}"><tr class="subscription-details-trigger" data-subscription-id="${s.id}" tabindex="0"><td><b><c:out value="${s.name}"/></b></td><td class="money"><b><c:out value="${monthlyNokBySubscriptionId[s.id]}"/></b> NOK</td></tr></c:forEach></tbody></table></div></c:if>
     </div>
 
     <div class="card">
@@ -142,6 +143,8 @@
   </div>
 </div>
 <script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
+  <script src="<c:url value='/assets/subscription-details.js?v=1'/>"></script>
 </body>
 </html>
+
 

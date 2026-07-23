@@ -2,7 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 
-<html>
+<html data-context-path="${pageContext.request.contextPath}">
 <head>
   <fmt:setBundle basename="messages" />
   <title><fmt:message key="subs.title"/></title>
@@ -14,6 +14,7 @@
   <link rel="apple-touch-icon" href="<c:url value='/apple-touch-icon.png'/>" />
   <meta name="theme-color" content="#0b1220" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="<c:url value='/assets/subscription-details.css?v=1'/>" />
 </head>
 <body>
 
@@ -85,7 +86,7 @@
           <tbody>
 
           <c:forEach var="s" items="${subs}">
-            <tr>
+            <tr class="subscription-details-trigger" data-subscription-id="${s.id}" tabindex="0">
               <td>
                 <div style="display:flex; flex-direction:column; gap:8px;">
                   <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
@@ -329,5 +330,7 @@
   });
 </script>
 <script src="<c:url value='/assets/mobile-nav.js?v=mobile-v2'/>"></script>
+  <script src="<c:url value='/assets/subscription-details.js?v=1'/>"></script>
 </body>
 </html>
+
